@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Budget } from '../hooks/useBudget'
 import { categoriesFor } from '../lib/categories'
 import { todayLocal } from '../lib/format'
@@ -69,7 +69,12 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
     onClose()
   }, [valid, parsedAmount, type, categoryId, cardId, note, date, transaction, budget, onSaved, onClose])
 
-  useEffect(() => setupMainButton(transaction ? 'Сохранить' : 'Добавить', save), [save, transaction])
+  const saveRef = useRef(save)
+  saveRef.current = save
+  useEffect(
+    () => setupMainButton(transaction ? 'Сохранить' : 'Добавить', () => saveRef.current()),
+    [transaction],
+  )
 
   const title = transaction ? 'Редактировать операцию' : 'Новая операция'
 

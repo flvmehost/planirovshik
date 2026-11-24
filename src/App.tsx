@@ -9,7 +9,7 @@ import { TransactionList } from './components/TransactionList'
 import { TransactionSheet } from './components/TransactionSheet'
 import { useBudget } from './hooks/useBudget'
 import { compactMoney, money } from './lib/format'
-import { haptic, initTelegram, notify } from './lib/telegram'
+import { hideKeyboard, haptic, initTelegram, notify } from './lib/telegram'
 import type { Card, Transaction, TransactionType } from './types'
 
 type SheetState =
@@ -35,6 +35,11 @@ export default function App() {
 
   const showToast = useCallback((message: string, action?: ToastState['action']) => {
     setToast({ id: Date.now(), message, action })
+  }, [])
+
+  const closeSheet = useCallback(() => {
+    hideKeyboard()
+    setSheet(null)
   }, [])
 
   useEffect(() => {
@@ -268,21 +273,21 @@ export default function App() {
           budget={budget}
           transaction={sheet.transaction}
           presetType={sheet.presetType}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           onSaved={handleSaved}
           onDeleted={(transaction) => {
-            setSheet(null)
+            closeSheet()
             handleDelete(transaction)
           }}
         />
       ) : null}
 
       {sheet?.kind === 'card' ? (
-        <CardSheet budget={budget} card={sheet.card} onClose={() => setSheet(null)} onSaved={handleSaved} />
+        <CardSheet budget={budget} card={sheet.card} onClose={closeSheet} onSaved={handleSaved} />
       ) : null}
 
       {sheet?.kind === 'goal' ? (
-        <GoalSheet budget={budget} onClose={() => setSheet(null)} onSaved={handleSaved} />
+        <GoalSheet budget={budget} onClose={closeSheet} onSaved={handleSaved} />
       ) : null}
 
       {toast ? (

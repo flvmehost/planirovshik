@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Budget } from '../hooks/useBudget'
 import { CARD_COLORS } from '../lib/categories'
 import { haptic, isTelegram, notify, setupMainButton } from '../lib/telegram'
@@ -45,7 +45,12 @@ export function CardSheet({ budget, card, onClose, onSaved }: Props) {
     onClose()
   }, [valid, bank, label, last4, color, parsedBalance, card, budget, onSaved, onClose])
 
-  useEffect(() => setupMainButton(card ? 'Сохранить' : 'Добавить', save), [save, card])
+  const saveRef = useRef(save)
+  saveRef.current = save
+  useEffect(
+    () => setupMainButton(card ? 'Сохранить' : 'Добавить', () => saveRef.current()),
+    [card],
+  )
 
   return (
     <Sheet

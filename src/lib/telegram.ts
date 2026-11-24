@@ -108,7 +108,7 @@ function applyTheme(): void {
 }
 
 /** Telegram сам публикует CSS-переменные; дублируем стабильную высоту для старых версий. */
-function applyViewport(): void {
+export function refreshViewport(): void {
   const tg = getWebApp()
   if (!tg) return
   const css = document.documentElement.style
@@ -132,21 +132,23 @@ export function initTelegram(onChange: () => void): () => void {
   tg.ready()
   tg.expand()
   applyTheme()
-  applyViewport()
+  refreshViewport()
 
   const handleTheme = () => {
     applyTheme()
-    applyViewport()
+    refreshViewport()
     onChange()
   }
   /* Пока анимация/клавиатура меняют viewport, пересчитывать layout нельзя. */
   const handleViewport = (payload?: { isStateStable?: boolean }) => {
     if (payload && payload.isStateStable === false) return
-    applyViewport()
+    /* Открытая клавиатура меняет viewport — высоту нельзя трогать до закрытия формы. */
+    if (document.body.classList.contains('sheet-open')) return
+    refreshViewport()
     onChange()
   }
   const handleSafeArea = () => {
-    applyViewport()
+    refreshViewport()
     onChange()
   }
 

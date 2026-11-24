@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Budget } from '../hooks/useBudget'
 import { haptic, isTelegram, notify, setupMainButton } from '../lib/telegram'
 import { Sheet } from './Sheet'
@@ -27,7 +27,9 @@ export function GoalSheet({ budget, onClose, onSaved }: Props) {
     onClose()
   }, [valid, title, parsedTarget, budget, onSaved, onClose])
 
-  useEffect(() => setupMainButton('Сохранить', save), [save])
+  const saveRef = useRef(save)
+  saveRef.current = save
+  useEffect(() => setupMainButton('Сохранить', () => saveRef.current()), [])
 
   return (
     <Sheet
