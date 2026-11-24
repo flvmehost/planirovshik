@@ -45,7 +45,6 @@ export function GoalSheet({ budget, onClose, onSaved }: Props) {
         <span className="field-label">Название цели</span>
         <input
           className="field-input"
-          autoFocus
           placeholder="Например, Отпуск"
           value={title}
           onChange={(event) => setTitle(event.target.value)}

@@ -104,7 +104,6 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
           <input
             className="mono"
             inputMode="decimal"
-            autoFocus
             placeholder="0"
             value={amount}
             onChange={(event) => setAmount(event.target.value.replace(/[^\d.,\s]/g, ''))}

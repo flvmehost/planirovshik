@@ -1,6 +1,13 @@
 type HapticStyle = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'
 type NotificationStyle = 'error' | 'success' | 'warning'
 
+interface SafeAreaInset {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
 interface ThemeParams {
   bg_color?: string
   text_color?: string
@@ -47,6 +54,9 @@ interface WebApp {
   themeParams: ThemeParams
   colorScheme: 'light' | 'dark'
   viewportHeight: number
+  viewportStableHeight?: number
+  safeAreaInset?: SafeAreaInset
+  hideKeyboard?(): void
   MainButton: MainButtonApi
   BackButton: BackButtonApi
   CloudStorage?: CloudStorageApi
@@ -58,8 +68,8 @@ interface WebApp {
   setBackgroundColor?(color: string): void
   enableClosingConfirmation?(): void
   disableClosingConfirmation?(): void
-  onEvent?(event: string, callback: () => void): void
-  offEvent?(event: string, callback: () => void): void
+  onEvent?(event: string, callback: (payload?: { isStateStable?: boolean }) => void): void
+  offEvent?(event: string, callback: (payload?: { isStateStable?: boolean }) => void): void
 }
 
 declare global {
@@ -95,7 +105,24 @@ function applyTheme(): void {
   set('--app-button', p.button_color ?? (dark ? '#7aa7ff' : '#3b6fe0'))
   set('--app-danger', p.destructive_text_color ?? '#e5484d')
   set('--app-positive', dark ? '#4fd18b' : '#249a62')
-  set('--tg-viewport-height', `${tg.viewportHeight}px`)
+}
+
+/** Telegram сам публикует CSS-переменные; дублируем стабильную высоту для старых версий. */
+function applyViewport(): void {
+  const tg = getWebApp()
+  if (!tg) return
+  const css = document.documentElement.style
+  const stable = tg.viewportStableHeight ?? tg.viewportHeight
+  if (Number.isFinite(stable)) {
+    css.setProperty('--tg-viewport-stable-height', `${stable}px`)
+  }
+  const safe = tg.safeAreaInset
+  if (safe) {
+    css.setProperty('--tg-safe-top', `${safe.top}px`)
+    css.setProperty('--tg-safe-bottom', `${safe.bottom}px`)
+    css.setProperty('--tg-safe-left', `${safe.left}px`)
+    css.setProperty('--tg-safe-right', `${safe.right}px`)
+  }
 }
 
 export function initTelegram(onChange: () => void): () => void {
@@ -105,22 +132,32 @@ export function initTelegram(onChange: () => void): () => void {
   tg.ready()
   tg.expand()
   applyTheme()
+  applyViewport()
 
   const handleTheme = () => {
     applyTheme()
+    applyViewport()
     onChange()
   }
-  const handleViewport = () => {
-    applyTheme()
+  /* Пока анимация/клавиатура меняют viewport, пересчитывать layout нельзя. */
+  const handleViewport = (payload?: { isStateStable?: boolean }) => {
+    if (payload && payload.isStateStable === false) return
+    applyViewport()
+    onChange()
+  }
+  const handleSafeArea = () => {
+    applyViewport()
     onChange()
   }
 
   tg.onEvent?.('themeChanged', handleTheme)
   tg.onEvent?.('viewportChanged', handleViewport)
+  tg.onEvent?.('safeAreaChanged', handleSafeArea)
 
   return () => {
     tg.offEvent?.('themeChanged', handleTheme)
     tg.offEvent?.('viewportChanged', handleViewport)
+    tg.offEvent?.('safeAreaChanged', handleSafeArea)
   }
 }
 
@@ -130,6 +167,11 @@ export function haptic(style: HapticStyle = 'light'): void {
 
 export function notify(type: NotificationStyle): void {
   getWebApp()?.HapticFeedback?.notificationOccurred(type)
+}
+
+export function hideKeyboard(): void {
+  const tg = isTelegram() ? getWebApp() : undefined
+  tg?.hideKeyboard?.()
 }
 
 export function setupMainButton(text: string, onClick: () => void): () => void {

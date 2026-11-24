@@ -63,7 +63,6 @@ export function CardSheet({ budget, card, onClose, onSaved }: Props) {
         <span className="field-label">Банк</span>
         <input
           className="field-input"
-          autoFocus
           placeholder="Например, Т-Банк"
           value={bank}
           onChange={(event) => setBank(event.target.value)}

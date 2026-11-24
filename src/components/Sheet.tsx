@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { setClosingConfirmation, setupBackButton } from '../lib/telegram'
+import { hideKeyboard, setClosingConfirmation, setupBackButton } from '../lib/telegram'
 
 interface SheetProps {
   title: string
@@ -23,6 +23,7 @@ export function Sheet({ title, onClose, children, footer }: SheetProps) {
       document.body.classList.remove('sheet-open')
       setClosingConfirmation(false)
       cleanupBack()
+      hideKeyboard()
     }
   }, [onClose])
 

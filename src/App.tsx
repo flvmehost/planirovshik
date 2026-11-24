@@ -85,7 +85,7 @@ export default function App() {
 
             <section className="panel hero">
               <span className="eyebrow">ОСТАТОК · {budget.scopeLabel.toUpperCase()}</span>
-              <div key={budget.scoped.balance} className="hero-amount mono">
+              <div className="hero-amount mono">
                 {money(budget.scoped.balance, { decimals: true })}
               </div>
               <div className="hero-stats">
