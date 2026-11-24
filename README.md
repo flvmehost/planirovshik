@@ -31,30 +31,26 @@ npm run preview
 
 ## Публикация мини-приложения
 
-### 1. Задеплойте статику
+### 1. Деплой через GitHub Pages (текущая конфигурация)
 
-Рекомендуется Vercel:
+Репозиторий: `https://github.com/flvmehost/planirovshik.git`, ветка `main`.
+Workflow `.github/workflows/deploy.yml` при каждом push собирает проект и публикует `dist/`.
 
-1. Создайте репозиторий на GitHub и залейте туда эту папку:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git branch -M main
-   git remote add origin https://github.com/<вас>/<репозиторий>.git
-   git push -u origin main
-   ```
-2. На [vercel.com/new](https://vercel.com/new) импортируйте репозиторий. Vercel сам определит Vite:
-   - Build Command: `npm run build`
-   - Output Directory: `dist`
-3. После деплоя скопируйте HTTPS-адрес вида `https://<проект>.vercel.app`. Именно его нужно указать в боте. Альтернативы: Netlify или GitHub Pages (с `base: './'` сборка уже подходит).
+Публичный адрес: **https://flvmehost.github.io/planirovshik/**
 
-### 2. Создайте бота у BotFather
+Если нужно заново включить Pages: repo → Settings → Pages → Source: **GitHub Actions**.
 
-1. Напишите [@BotFather](https://t.me/BotFather) команду `/newbot`, придумайте название и `@username`. Сохраните выданный токен.
-2. Настройте мини-приложение: `/mybots` → выберите бота → **Bot Settings → Configure Mini App → Enable Mini App** и укажите URL из шага 1 (обязательно `https://`).
-3. Настройте кнопку меню: `/setmenubutton` → выберите бота → вставьте тот же HTTPS-URL и текст кнопки, например `Бюджет`.
-4. При желании включите **Main Mini App**: в разделе Mini App можно задать кнопку «Launch app» в профиле бота; тогда приложение также откроется по ссылке `https://t.me/<username>?startapp`.
+### 2. Бот @planirovshikbudgetaai
+
+Бот создан через [@BotFather](https://t.me/BotFather). Кнопка меню «Бюджет» и команды уже выставлены через Bot API:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setChatMenuButton" \
+  -H 'content-type: application/json' \
+  -d '{"menu_button":{"type":"web_app","text":"Бюджет","web_app":{"url":"https://flvmehost.github.io/planirovshik/"}}}'
+```
+
+При желании включите **Main Mini App** в BotFather (`/mybots` → бот → Bot Settings → Configure Mini App), чтобы в профиле появилась кнопка «Launch app» и ссылка `https://t.me/planirovshikbudgetaai?startapp` открывала приложение напрямую.
 
 ### 3. Запустите бота с кнопкой «Открыть планировщик»
 
@@ -71,7 +67,7 @@ npm start
 
 ### 4. Проверьте в Telegram
 
-- Откройте чат с ботом → `/start` → нажмите кнопку; либо кнопку меню «Бюджет»; либо ссылку `https://t.me/<username>?startapp`.
+- Откройте чат с `@planirovshikbudgetaai` → `/start` → нажмите кнопку; либо кнопку меню «Бюджет»; либо ссылку `https://t.me/planirovshikbudgetaai?startapp`.
 - Проверьте светлую и тёмную темы, безопасные отступы, работу на телефоне и в Telegram Desktop.
 - Убедитесь, что данные сохраняются между перезапусками мини-приложения: локально в `localStorage`, в Telegram дополнительно в `CloudStorage` (привязан к боту, отдельный серверный токен не нужен).
 
