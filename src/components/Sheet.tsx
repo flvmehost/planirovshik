@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { refreshViewport, setClosingConfirmation, setupBackButton } from '../lib/telegram'
+import { refreshViewport, setClosingConfirmation, setVerticalSwipes, setupBackButton } from '../lib/telegram'
 
 interface SheetProps {
   title: string
@@ -17,13 +17,15 @@ export function Sheet({ title, onClose, children, footer }: SheetProps) {
     window.addEventListener('keydown', onKeyDown)
     document.body.classList.add('sheet-open')
     setClosingConfirmation(true)
+    setVerticalSwipes(false)
     const cleanupBack = setupBackButton(onClose)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       document.body.classList.remove('sheet-open')
       setClosingConfirmation(false)
+      setVerticalSwipes(true)
       cleanupBack()
-      refreshViewport()
+      refreshViewport(true)
     }
   }, [onClose])
 

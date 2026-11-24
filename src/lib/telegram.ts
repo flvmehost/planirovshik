@@ -68,6 +68,8 @@ interface WebApp {
   setBackgroundColor?(color: string): void
   enableClosingConfirmation?(): void
   disableClosingConfirmation?(): void
+  enableVerticalSwipes?(): void
+  disableVerticalSwipes?(): void
   onEvent?(event: string, callback: (payload?: { isStateStable?: boolean }) => void): void
   offEvent?(event: string, callback: (payload?: { isStateStable?: boolean }) => void): void
 }
@@ -107,21 +109,26 @@ function applyTheme(): void {
   set('--app-positive', dark ? '#4fd18b' : '#249a62')
 }
 
-/** Telegram сам публикует CSS-переменные; дублируем стабильную высоту для старых версий. */
-export function refreshViewport(): void {
+/**
+ * Telegram SDK сам записывает --tg-viewport-* при каждом viewportChanged,
+ * в том числе когда открывается клавиатура. Поэтому нашу высоту храним в
+ * отдельной переменной и не пересчитываем её, пока открыта шторка.
+ */
+const FROZEN_HEIGHT = '--app-viewport-height'
+
+export function refreshViewport(force = false): void {
   const tg = getWebApp()
   if (!tg) return
   const css = document.documentElement.style
-  const stable = tg.viewportStableHeight ?? tg.viewportHeight
-  if (Number.isFinite(stable)) {
-    css.setProperty('--tg-viewport-stable-height', `${stable}px`)
-  }
   const safe = tg.safeAreaInset
   if (safe) {
-    css.setProperty('--tg-safe-top', `${safe.top}px`)
-    css.setProperty('--tg-safe-bottom', `${safe.bottom}px`)
-    css.setProperty('--tg-safe-left', `${safe.left}px`)
-    css.setProperty('--tg-safe-right', `${safe.right}px`)
+    css.setProperty('--app-safe-top', `${safe.top}px`)
+    css.setProperty('--app-safe-bottom', `${safe.bottom}px`)
+  }
+  if (!force && document.body.classList.contains('sheet-open')) return
+  const stable = tg.viewportStableHeight ?? tg.viewportHeight
+  if (Number.isFinite(stable) && stable > 0) {
+    css.setProperty(FROZEN_HEIGHT, `${stable}px`)
   }
 }
 
@@ -208,6 +215,14 @@ export function setClosingConfirmation(enabled: boolean): void {
   if (!tg) return
   if (enabled) tg.enableClosingConfirmation?.()
   else tg.disableClosingConfirmation?.()
+}
+
+/** Пока открыта форма, Telegram не должен тянуть мини-приложение вниз. */
+export function setVerticalSwipes(enabled: boolean): void {
+  const tg = isTelegram() ? getWebApp() : undefined
+  if (!tg) return
+  if (enabled) tg.enableVerticalSwipes?.()
+  else tg.disableVerticalSwipes?.()
 }
 
 export function cloudGet(key: string): Promise<string | null> {
