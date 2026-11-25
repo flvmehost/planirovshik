@@ -1,12 +1,13 @@
-import type { BudgetState } from '../types'
+import type { BudgetState, Category, TransactionType } from '../types'
 import { cloudGet, cloudSet } from './telegram'
 
 const STATE_KEY = 'planirovshik.budget.v1'
 const SCOPE_KEY = 'planirovshik.scope.v1'
+const TYPES: TransactionType[] = ['income', 'expense', 'saving']
 
 export function defaultState(): BudgetState {
   return {
-    version: 1,
+    version: 2,
     cards: [
       {
         id: 'default-card',
@@ -20,21 +21,53 @@ export function defaultState(): BudgetState {
       },
     ],
     transactions: [],
+    customCategories: [],
     goal: { title: 'Цель накоплений', target: 100_000 },
     updatedAt: Date.now(),
   }
 }
 
-function isValidState(value: unknown): value is BudgetState {
-  if (!value || typeof value !== 'object') return false
-  const state = value as Partial<BudgetState>
-  return (
-    state.version === 1 &&
-    Array.isArray(state.cards) &&
-    Array.isArray(state.transactions) &&
-    Boolean(state.goal) &&
-    typeof state.goal?.target === 'number'
-  )
+function readCategories(value: unknown): Category[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is Category => {
+    if (!item || typeof item !== 'object') return false
+    const category = item as Partial<Category>
+    return (
+      typeof category.id === 'string' &&
+      category.id.startsWith('custom-') &&
+      typeof category.label === 'string' &&
+      category.label.trim().length > 0 &&
+      typeof category.emoji === 'string' &&
+      typeof category.color === 'string' &&
+      TYPES.includes(category.kind as TransactionType)
+    )
+  })
+}
+
+/** Читает состояние любой поддерживаемой версии и приводит его к текущей. */
+interface StoredState {
+  version?: number
+  cards?: unknown
+  transactions?: unknown
+  customCategories?: unknown
+  goal?: { title?: string; target?: number }
+  updatedAt?: number
+}
+
+function migrateState(value: unknown): BudgetState | null {
+  if (!value || typeof value !== 'object') return null
+  const state = value as StoredState
+  if (state.version !== 1 && state.version !== 2) return null
+  if (!Array.isArray(state.cards) || !Array.isArray(state.transactions)) return null
+  if (!state.goal || typeof state.goal.target !== 'number') return null
+  return {
+    version: 2,
+    cards: state.cards as BudgetState['cards'],
+    transactions: state.transactions as BudgetState['transactions'],
+    customCategories: readCategories(state.customCategories),
+    goal: { title: state.goal.title ?? 'Цель накоплений', target: state.goal.target },
+    updatedAt: typeof state.updatedAt === 'number' ? state.updatedAt : Date.now(),
+  }
 }
 
 export function loadLocal(): BudgetState {
@@ -42,7 +75,7 @@ export function loadLocal(): BudgetState {
     const raw = localStorage.getItem(STATE_KEY)
     if (!raw) return defaultState()
     const parsed: unknown = JSON.parse(raw)
-    return isValidState(parsed) ? parsed : defaultState()
+    return migrateState(parsed) ?? defaultState()
   } catch {
     return defaultState()
   }
@@ -80,8 +113,8 @@ export async function hydrateFromCloud(local: BudgetState): Promise<BudgetState>
     return local
   }
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (isValidState(parsed) && parsed.updatedAt > local.updatedAt) {
+    const parsed = migrateState(JSON.parse(raw))
+    if (parsed && parsed.updatedAt > local.updatedAt) {
       saveLocal(parsed)
       return parsed
     }

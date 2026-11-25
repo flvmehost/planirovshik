@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getCategory } from '../lib/categories'
 import { hydrateFromCloud, loadLocal, loadScope, saveLocal, saveScope, scheduleCloudSync } from '../lib/storage'
-import type { BudgetState, Card, CardSummary, Goal, Transaction, TransactionInput } from '../types'
+import type { BudgetState, Card, CardSummary, Category, Goal, Transaction, TransactionInput } from '../types'
 import { newId } from '../types'
 
 export interface CategoryTotal {
@@ -103,7 +103,7 @@ export function useBudget() {
     }
     return [...totals.entries()]
       .map(([id, amount]) => {
-        const category = getCategory(id)
+        const category = getCategory(id, state.customCategories, 'expense')
         return {
           id,
           label: category.label,
@@ -114,7 +114,7 @@ export function useBudget() {
         }
       })
       .sort((a, b) => b.amount - a.amount)
-  }, [scoped])
+  }, [scoped, state.customCategories])
 
   const addCard = useCallback((input: Omit<Card, 'id' | 'createdAt' | 'archived'>) => {
     const id = newId()
@@ -147,6 +147,42 @@ export function useBudget() {
     })
     if (archived && scope === id) setScope('all')
   }, [scope, setScope])
+
+  const addCategory = useCallback((input: Omit<Category, 'id'>) => {
+    const id = `custom-${newId()}`
+    setState((prev) => ({
+      ...prev,
+      customCategories: [...prev.customCategories, { ...input, id }],
+      updatedAt: stamp(prev.updatedAt),
+    }))
+    return id
+  }, [])
+
+  const updateCategory = useCallback((id: string, patch: Partial<Pick<Category, 'label' | 'emoji' | 'color'>>) => {
+    if (!id.startsWith('custom-')) return
+    setState((prev) => ({
+      ...prev,
+      customCategories: prev.customCategories.map((category) =>
+        category.id === id ? { ...category, ...patch } : category,
+      ),
+      updatedAt: stamp(prev.updatedAt),
+    }))
+  }, [])
+
+  const deleteCategory = useCallback((id: string) => {
+    const category = stateRef.current.customCategories.find((item) => item.id === id)
+    if (!category) return false
+    const fallback = category.kind === 'income' ? 'other-income' : category.kind === 'saving' ? 'goal' : 'other-expense'
+    setState((prev) => ({
+      ...prev,
+      customCategories: prev.customCategories.filter((item) => item.id !== id),
+      transactions: prev.transactions.map((tx) =>
+        tx.categoryId === id ? { ...tx, categoryId: fallback } : tx,
+      ),
+      updatedAt: stamp(prev.updatedAt),
+    }))
+    return true
+  }, [])
 
   const deleteCard = useCallback((id: string) => {
     if (stateRef.current.transactions.some((tx) => tx.cardId === id)) return false
@@ -221,6 +257,9 @@ export function useBudget() {
     updateCard,
     setCardArchived,
     deleteCard,
+    addCategory,
+    updateCategory,
+    deleteCategory,
     addTransaction,
     updateTransaction,
     deleteTransaction,

@@ -36,9 +36,10 @@ export interface Goal {
 }
 
 export interface BudgetState {
-  version: 1
+  version: 2
   cards: Card[]
   transactions: Transaction[]
+  customCategories: Category[]
   goal: Goal
   updatedAt: number
 }

@@ -16,12 +16,23 @@ export const CATEGORIES: Category[] = [
   { id: 'reserve', label: 'Резерв', emoji: '🏦', color: '#35C7A2', kind: 'saving' },
 ]
 
-export function categoriesFor(kind: TransactionType): Category[] {
-  return CATEGORIES.filter((category) => category.kind === kind)
-}
-
-export function getCategory(id: string): Category {
-  return CATEGORIES.find((category) => category.id === id) ?? CATEGORIES[6]
-}
+/** Эмодзи и цвета для пользовательских категорий. */
+export const CATEGORY_EMOJIS = [
+  '✨', '🍕', '☕', '🛒', '🚌', '🏠', '💡', '📱',
+  '🎮', '🏋️', '🎁', '💼', '💻', '🐾', '🎓', '✈️',
+]
 
 export const CARD_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F97316', '#10B981', '#64748B']
+
+export const CATEGORY_COLORS = [...CARD_COLORS, '#FF9F43', '#FFC93C', '#35C7A2', '#A78BFA']
+
+export function categoriesFor(kind: TransactionType, custom: Category[] = []): Category[] {
+  return [...CATEGORIES, ...custom].filter((category) => category.kind === kind)
+}
+
+export function getCategory(id: string, custom: Category[] = [], kind: TransactionType = 'expense'): Category {
+  const found = [...CATEGORIES, ...custom].find((category) => category.id === id)
+  if (found) return found
+  const fallback = kind === 'income' ? 'other-income' : kind === 'saving' ? 'goal' : 'other-expense'
+  return CATEGORIES.find((category) => category.id === fallback) ?? CATEGORIES[6]
+}

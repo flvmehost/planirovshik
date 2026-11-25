@@ -1,17 +1,25 @@
 import { useMemo, type CSSProperties } from 'react'
 import { getCategory } from '../lib/categories'
 import { dateLabel, money } from '../lib/format'
-import type { Card, Transaction } from '../types'
+import type { Card, Category, Transaction } from '../types'
 
 interface Props {
   transactions: Transaction[]
   cards: Card[]
+  customCategories: Category[]
   onEdit: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
   emptyText?: string
 }
 
-export function TransactionList({ transactions, cards, onEdit, onDelete, emptyText = 'Операций пока нет' }: Props) {
+export function TransactionList({
+  transactions,
+  cards,
+  customCategories,
+  onEdit,
+  onDelete,
+  emptyText = 'Операций пока нет',
+}: Props) {
   const groups = useMemo(() => {
     const map = new Map<string, Transaction[]>()
     for (const tx of transactions) {
@@ -47,7 +55,7 @@ export function TransactionList({ transactions, cards, onEdit, onDelete, emptyTe
           </div>
 
           {group.items.map((tx) => {
-            const category = getCategory(tx.categoryId)
+            const category = getCategory(tx.categoryId, customCategories, tx.type)
             const card = cards.find((item) => item.id === tx.cardId)
             return (
               <div className="transaction-row" key={tx.id}>

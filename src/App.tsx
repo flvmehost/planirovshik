@@ -147,6 +147,7 @@ export default function App() {
               <TransactionList
                 transactions={budget.scoped.transactions.slice(0, 5)}
                 cards={budget.state.cards}
+                customCategories={budget.state.customCategories}
                 onEdit={(transaction) => setSheet({ kind: 'transaction', transaction })}
                 onDelete={handleDelete}
               />
@@ -186,6 +187,7 @@ export default function App() {
               <TransactionList
                 transactions={budget.scoped.transactions}
                 cards={budget.state.cards}
+                customCategories={budget.state.customCategories}
                 onEdit={(transaction) => setSheet({ kind: 'transaction', transaction })}
                 onDelete={handleDelete}
                 emptyText="Добавьте первую операцию"
