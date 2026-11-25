@@ -132,6 +132,27 @@ export function refreshViewport(force = false): void {
   }
 }
 
+/**
+ * Клавиатура на iOS уменьшает visualViewport, а не layout. Держим шторку
+ * привязанной к реально видимой области, чтобы сумма не уезжала под клавиши.
+ */
+export function watchVisualViewport(): () => void {
+  const vv = window.visualViewport
+  if (!vv) return () => undefined
+  const css = document.documentElement.style
+  const sync = () => {
+    css.setProperty('--app-vv-height', `${Math.round(vv.height)}px`)
+    css.setProperty('--app-vv-offset', `${Math.round(vv.offsetTop)}px`)
+  }
+  sync()
+  vv.addEventListener('resize', sync)
+  vv.addEventListener('scroll', sync)
+  return () => {
+    vv.removeEventListener('resize', sync)
+    vv.removeEventListener('scroll', sync)
+  }
+}
+
 export function initTelegram(onChange: () => void): () => void {
   const tg = getWebApp()
   if (!tg) return () => undefined

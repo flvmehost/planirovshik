@@ -13,6 +13,8 @@
   --app-border: color-mix(in srgb, var(--app-text) 10%, transparent);
   --radius: 18px;
   --app-viewport-height: 100dvh;
+  --app-vv-height: var(--app-viewport-height);
+  --app-vv-offset: 0px;
   --app-safe-top: 0px;
   --app-safe-bottom: 0px;
   --tg-bottom-button-space: 56px;
@@ -775,7 +777,11 @@ body.sheet-open {
 /* Шторки */
 .sheet-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-vv-height, var(--app-viewport-height, 100dvh));
+  transform: translateY(var(--app-vv-offset, 0px));
   z-index: 50;
   display: flex;
   align-items: flex-end;
@@ -789,7 +795,7 @@ body.sheet-open {
 .sheet {
   width: 100%;
   max-width: 520px;
-  max-height: calc(var(--app-viewport-height, 100dvh) - max(env(safe-area-inset-top), var(--app-safe-top)) - 12px);
+  max-height: calc(var(--app-vv-height, var(--app-viewport-height, 100dvh)) - max(env(safe-area-inset-top), var(--app-safe-top)) - 12px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -833,6 +839,19 @@ body.sheet-open {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Тип операции и сумма всегда остаются на виду при прокрутке формы. */
+.sheet-pin {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: -4px 0 -6px;
+  padding: 4px 0 10px;
+  background: var(--app-surface);
 }
 
 .sheet-footer {
@@ -902,11 +921,17 @@ body.sheet-open {
 }
 
 .field-label {
+  display: block;
+  height: 14px;
+  line-height: 14px;
   color: var(--app-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .field-input,
@@ -914,11 +939,37 @@ body.sheet-open {
   width: 100%;
   border: 1px solid var(--app-border);
   border-radius: 12px;
-  padding: 12px 13px;
   background: var(--app-surface-2);
   color: var(--app-text);
   font-size: 15px;
   outline: none;
+}
+
+.field-input {
+  height: 48px;
+  padding: 0 13px;
+  line-height: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* iOS рисует нативный date иначе, чем текст — выравниваем по общей высоте. */
+input[type='date'].field-input {
+  display: flex;
+  align-items: center;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='date'].field-input::-webkit-date-and-time-value {
+  margin: 0;
+  text-align: left;
+}
+
+input[type='date'].field-input::-webkit-calendar-picker-indicator {
+  margin-left: auto;
+  opacity: 0.5;
 }
 
 .field-input:focus,
@@ -930,6 +981,8 @@ body.sheet-open {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 48px;
+  padding: 12px 13px;
 }
 
 .amount-field input {
@@ -961,7 +1014,14 @@ body.sheet-open {
 
 .field-row {
   display: flex;
+  align-items: flex-end;
   gap: 10px;
+}
+
+/* Дата и заметка делят строку поровну, чтобы поля стояли ровно. */
+.field-row--even > .field {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .chip-grid {

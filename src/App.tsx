@@ -9,7 +9,7 @@ import { TransactionList } from './components/TransactionList'
 import { TransactionSheet } from './components/TransactionSheet'
 import { useBudget } from './hooks/useBudget'
 import { compactMoney, money } from './lib/format'
-import { hideKeyboard, haptic, initTelegram, notify } from './lib/telegram'
+import { hideKeyboard, haptic, initTelegram, notify, watchVisualViewport } from './lib/telegram'
 import type { Card, Transaction, TransactionType } from './types'
 
 type SheetState =
@@ -32,6 +32,7 @@ export default function App() {
   const [, setThemeTick] = useState(0)
 
   useEffect(() => initTelegram(() => setThemeTick((value) => value + 1)), [])
+  useEffect(() => watchVisualViewport(), [])
 
   const showToast = useCallback((message: string, action?: ToastState['action']) => {
     setToast({ id: Date.now(), message, action })

@@ -90,32 +90,34 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
         )
       }
     >
-      <div className="segmented">
-        {TYPE_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={type === tab.id ? 'is-active' : ''}
-            onClick={() => changeType(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <label className="field">
-        <span className="field-label">Сумма</span>
-        <div className="amount-field">
-          <input
-            className="mono"
-            inputMode="decimal"
-            placeholder="0"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value.replace(/[^\d.,\s]/g, ''))}
-          />
-          <span>₽</span>
+      <div className="sheet-pin">
+        <div className="segmented">
+          {TYPE_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={type === tab.id ? 'is-active' : ''}
+              onClick={() => changeType(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </label>
+
+        <label className="field">
+          <span className="field-label">Сумма</span>
+          <div className="amount-field">
+            <input
+              className="mono"
+              inputMode="decimal"
+              placeholder="0"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value.replace(/[^\d.,\s]/g, ''))}
+            />
+            <span>₽</span>
+          </div>
+        </label>
+      </div>
 
       <div className="field">
         <span className="field-label">Категория</span>
@@ -152,12 +154,12 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
         )}
       </label>
 
-      <div className="field-row">
+      <div className="field-row field-row--even">
         <label className="field">
           <span className="field-label">Дата</span>
           <input className="field-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
         </label>
-        <label className="field field--grow">
+        <label className="field">
           <span className="field-label">Заметка</span>
           <input
             className="field-input"
