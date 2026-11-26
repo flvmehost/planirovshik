@@ -65,7 +65,9 @@ npm run build
 npm start
 ```
 
-Бот на grammY отправляет по `/start` сообщение с inline-кнопкой `web_app`, которая открывает мини-приложение. Для постоянной работы запустите `npm start` на VPS под `systemd`/`pm2` или используйте любой Node-хостинг.
+Бот на grammY отправляет по `/start` сообщение с inline-кнопкой `web_app`, которая открывает мини-приложение. Локально он работает на polling и сам вызывает `deleteWebhook`; на хостинге (Render) переменная `RENDER_EXTERNAL_URL` включает webhook, поэтому Telegram разбудит спящий сервис входящим запросом.
+
+> Не запускайте локального бота одновременно с задеплоенным: локальный инстанс удалит webhook у облачного.
 
 ### 4. Импорт выписки из чата
 
@@ -80,8 +82,8 @@ npm start
 
 1. Запушьте репозиторий на GitHub.
 2. В Render: **New → Blueprint**, выберите репозиторий. Render прочитает `render.yaml` и создаст сервис `planirovshik-bot`. Быстрая ссылка: `https://render.com/deploy?repo=https://github.com/flvmehost/planirovshik`.
-3. В настройках сервиса задайте `BOT_TOKEN` (из `@BotFather`). `WEB_APP_URL` уже указан в `render.yaml`.
-4. После деплоя проверьте `https://<имя-сервиса>.onrender.com/health` — должно вернуться `{"ok":true,...}`.
+3. В настройках сервиса задайте `BOT_TOKEN` (из `@BotFather`). `WEBHOOK_SECRET` сгенерируется автоматически, `RENDER_EXTERNAL_URL` Render задаёт сам — он включает webhook. `WEB_APP_URL` указан в `render.yaml`.
+4. После деплоя проверьте `https://<имя-сервиса>.onrender.com/health` — должно вернуться `{"ok":true,...}`. Запрос `POST /telegram` без секрета должен вернуть 401.
 5. В GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**: `VITE_IMPORT_API_URL` = `https://<имя-сервиса>.onrender.com`. Затем перезапустите workflow Pages (push в `main` или **Run workflow**).
 6. Обновите `WEB_APP_URL` в `bot/.env` на актуальную версию (`?v=8`) и перезапустите локального бота, если он запущен.
 

@@ -9,6 +9,13 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Max-Age': '86400',
 }
 
+export interface ServerOptions {
+  /** Обработчик Telegram-апдейтов (webhook). */
+  onUpdate?: (req: IncomingMessage, res: ServerResponse) => Promise<void>
+  /** Секрет из setWebhook; Telegram присылает его в заголовке. */
+  secret?: string
+}
+
 function send(res: ServerResponse, status: number, body: string, type = 'text/plain; charset=utf-8'): void {
   res.writeHead(status, { ...CORS_HEADERS, 'Content-Type': type, 'Cache-Control': 'no-store' })
   res.end(body)
@@ -56,7 +63,7 @@ function verifyInitData(initData: string, botToken: string): TelegramUser | null
   }
 }
 
-export function startServer(botToken: string): void {
+export function startServer(botToken: string, options: ServerOptions = {}): void {
   const port = Number(process.env.PORT ?? 8080)
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const method = req.method ?? 'GET'
@@ -68,6 +75,21 @@ export function startServer(botToken: string): void {
     }
 
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
+
+    if (method === 'POST' && url.pathname === '/telegram' && options.onUpdate) {
+      if (options.secret) {
+        const header = req.headers['x-telegram-bot-api-secret-token']
+        if (header !== options.secret) {
+          sendJson(res, 401, { error: 'UNAUTHORIZED' })
+          return
+        }
+      }
+      void options.onUpdate(req, res).catch((error) => {
+        console.error('Ошибка обработки апдейта:', error)
+        if (!res.headersSent) sendJson(res, 500, { error: 'UPDATE_FAILED' })
+      })
+      return
+    }
 
     if (method === 'GET' && url.pathname === '/health') {
       sendJson(res, 200, { ok: true, imports: importsCount() })

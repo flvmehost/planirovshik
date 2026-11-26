@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { Bot, InlineKeyboard } from 'grammy'
+import { Bot, InlineKeyboard, webhookCallback } from 'grammy'
 import { storeImport } from './imports.js'
 import { startServer } from './server.js'
 
@@ -118,7 +118,32 @@ bot.catch((error) => {
   console.error('Ошибка бота:', error)
 })
 
-startServer(BOT_TOKEN)
+async function launch(): Promise<void> {
+  const webhookBase = (process.env.WEBHOOK_URL ?? process.env.RENDER_EXTERNAL_URL)?.replace(/\/+$/, '')
+  const webhookSecret = process.env.WEBHOOK_SECRET
 
-void bot.start()
-console.log('Бот запущен. Токен и URL загружены из bot/.env')
+  if (webhookBase) {
+    const onUpdate = webhookCallback(bot, 'http')
+    startServer(BOT_TOKEN, { onUpdate, secret: webhookSecret })
+    const url = `${webhookBase}/telegram`
+    try {
+      await bot.api.setWebhook(url, webhookSecret ? { secret_token: webhookSecret } : undefined)
+      console.log(`Webhook установлен: ${url}`)
+    } catch (error) {
+      console.error('Не удалось установить webhook:', error)
+    }
+    return
+  }
+
+  // Локально переключаемся с webhook на polling.
+  try {
+    await bot.api.deleteWebhook()
+  } catch (error) {
+    console.error('Не удалось удалить webhook:', error)
+  }
+  startServer(BOT_TOKEN)
+  void bot.start()
+  console.log('Бот запущен в режиме polling.')
+}
+
+void launch()
