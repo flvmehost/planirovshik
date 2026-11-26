@@ -85,7 +85,7 @@ npm start
 3. В настройках сервиса задайте `BOT_TOKEN` (из `@BotFather`). `WEBHOOK_SECRET` сгенерируется автоматически, `RENDER_EXTERNAL_URL` Render задаёт сам — он включает webhook. `WEB_APP_URL` указан в `render.yaml`.
 4. После деплоя проверьте `https://<имя-сервиса>.onrender.com/health` — должно вернуться `{"ok":true,...}`. Запрос `POST /telegram` без секрета должен вернуть 401.
 5. В GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**: `VITE_IMPORT_API_URL` = `https://<имя-сервиса>.onrender.com`. Затем перезапустите workflow Pages (push в `main` или **Run workflow**).
-6. Обновите `WEB_APP_URL` в `bot/.env` на актуальную версию (`?v=8`) и перезапустите локального бота, если он запущен.
+6. Обновите `WEB_APP_URL` в `bot/.env` на актуальную версию (`?v=9`) и перезапустите локального бота, если он запущен.
 
 Бесплатный план Render засыпает после простоя: первое сообщение после паузы может обрабатываться 20–30 секунд. Файл хранится только в памяти процесса и удаляется через час; после перезапуска сервиса ссылки становятся недействительными.
 
