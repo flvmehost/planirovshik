@@ -79,7 +79,7 @@ npm start
 Для этого бот и HTTP-эндпоинт должны быть постоянно доступны. Бесплатный вариант — **Render Web Service**:
 
 1. Запушьте репозиторий на GitHub.
-2. В Render: **New → Blueprint**, выберите репозиторий. Render прочитает `render.yaml` и создаст сервис `planirovshik-bot`.
+2. В Render: **New → Blueprint**, выберите репозиторий. Render прочитает `render.yaml` и создаст сервис `planirovshik-bot`. Быстрая ссылка: `https://render.com/deploy?repo=https://github.com/flvmehost/planirovshik`.
 3. В настройках сервиса задайте `BOT_TOKEN` (из `@BotFather`). `WEB_APP_URL` уже указан в `render.yaml`.
 4. После деплоя проверьте `https://<имя-сервиса>.onrender.com/health` — должно вернуться `{"ok":true,...}`.
 5. В GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**: `VITE_IMPORT_API_URL` = `https://<имя-сервиса>.onrender.com`. Затем перезапустите workflow Pages (push в `main` или **Run workflow**).

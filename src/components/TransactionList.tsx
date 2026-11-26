@@ -50,7 +50,7 @@ export function TransactionList({
           <div className="transaction-group__head">
             <span>{dateLabel(group.date)}</span>
             <span className={`mono ${group.net < 0 ? 'text-negative' : 'text-positive'}`}>
-              {money(group.net, { sign: true })}
+              {money(group.net, { sign: true, decimals: true })}
             </span>
           </div>
 
@@ -73,7 +73,7 @@ export function TransactionList({
                   </span>
                 </div>
                 <div className={`transaction-amount mono ${tx.type === 'income' ? 'text-positive' : 'text-negative'}`}>
-                  {tx.type === 'income' ? '+' : '−'}{money(tx.amount)}
+                  {tx.type === 'income' ? '+' : '−'}{money(tx.amount, { decimals: true })}
                 </div>
                 <div className="transaction-actions">
                   <button type="button" className="icon-button small" aria-label="Редактировать" onClick={() => onEdit(tx)}>

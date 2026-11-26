@@ -65,7 +65,7 @@ export function CategoryChart({ entries, total }: Props) {
               <li key={entry.id}>
                 <span className="legend-dot" style={{ background: entry.color }} />
                 <span className="legend-label">{entry.emoji} {entry.label}</span>
-                <span className="legend-value mono">{money(entry.amount)}</span>
+                <span className="legend-value mono">{money(entry.amount, { decimals: true })}</span>
                 <span className="legend-share mono">{entry.share}%</span>
               </li>
             ))}

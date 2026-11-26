@@ -249,6 +249,7 @@ export function ImportSheet({ budget, initialToken, onClose, onSaved }: Props) {
                     (sum, row) => sum + (row.type === 'income' ? amountValue(row.amount) : -amountValue(row.amount)),
                     0,
                   ),
+                  { decimals: true },
                 )}
               </strong>
             </div>
@@ -284,7 +285,7 @@ export function ImportSheet({ budget, initialToken, onClose, onSaved }: Props) {
                     <strong>{row.description}</strong>
                     <span className={`mono ${row.type === 'income' ? 'text-positive' : 'text-negative'}`}>
                       {signOf(row.type)}
-                      {money(amountValue(row.amount))}
+                      {money(amountValue(row.amount), { decimals: true })}
                     </span>
                   </div>
                   <div className="import-row__meta">
