@@ -14,6 +14,8 @@ export const CATEGORIES: Category[] = [
   { id: 'other-income', label: 'Прочее', emoji: '💰', color: '#9AA3B2', kind: 'income' },
   { id: 'goal', label: 'В цель', emoji: '🎯', color: '#A78BFA', kind: 'saving' },
   { id: 'reserve', label: 'Резерв', emoji: '🏦', color: '#35C7A2', kind: 'saving' },
+  { id: 'credit-payment', label: 'В кредит', emoji: '💳', color: '#F97316', kind: 'creditPayment' },
+  { id: 'credit-interest', label: 'Проценты', emoji: '📈', color: '#EC4899', kind: 'creditInterest' },
 ]
 
 /** Эмодзи и цвета для пользовательских категорий. */
@@ -33,6 +35,15 @@ export function categoriesFor(kind: TransactionType, custom: Category[] = []): C
 export function getCategory(id: string, custom: Category[] = [], kind: TransactionType = 'expense'): Category {
   const found = [...CATEGORIES, ...custom].find((category) => category.id === id)
   if (found) return found
-  const fallback = kind === 'income' ? 'other-income' : kind === 'saving' ? 'goal' : 'other-expense'
+  const fallback =
+    kind === 'income'
+      ? 'other-income'
+      : kind === 'saving'
+        ? 'goal'
+        : kind === 'creditPayment'
+          ? 'credit-payment'
+          : kind === 'creditInterest'
+            ? 'credit-interest'
+            : 'other-expense'
   return CATEGORIES.find((category) => category.id === fallback) ?? CATEGORIES[6]
 }

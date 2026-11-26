@@ -463,7 +463,7 @@ body.sheet-open {
 
 .hero-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 
@@ -951,6 +951,81 @@ body.sheet-open {
   opacity: 0.4;
 }
 
+.credit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.credit-card {
+  border-left: 4px solid var(--card-color, var(--app-accent));
+}
+
+.credit-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.credit-progress__track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--app-surface-2);
+  overflow: hidden;
+}
+
+.credit-progress__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--card-color, var(--app-accent));
+}
+
+.credit-progress > span {
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.credit-due {
+  margin-bottom: 10px;
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.bank-card__actions--secondary {
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.credit-operation__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--app-surface-2);
+  margin-bottom: 16px;
+}
+
+.credit-operation__info span {
+  font-size: 11px;
+  color: var(--app-muted);
+}
+
+.credit-operation__info strong {
+  font-size: 18px;
+}
+
+.credit-operation__info small {
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.field-hint--warning {
+  color: var(--app-danger);
+}
+
 .archive-row {
   display: flex;
   align-items: center;
@@ -1113,6 +1188,15 @@ body.sheet-open {
   background: var(--app-surface);
   color: var(--app-text);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.segmented--wide {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.segmented--wide button {
+  padding: 8px 2px;
+  font-size: 10px;
 }
 
 .field {
@@ -1342,9 +1426,9 @@ input[type='date'].field-input::-webkit-calendar-picker-indicator {
   max-width: 520px;
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
-  padding: 8px 16px calc(max(env(safe-area-inset-bottom), var(--app-safe-bottom)) + 8px);
+  padding: 8px 12px calc(max(env(safe-area-inset-bottom), var(--app-safe-bottom)) + 8px);
   border-top: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-surface) 88%, transparent);
   backdrop-filter: blur(16px);

@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getCategory } from '../lib/categories'
 import { hydrateFromCloud, loadLocal, loadScope, saveLocal, saveScope, scheduleCloudSync } from '../lib/storage'
-import type { BudgetState, Card, CardSummary, Category, Goal, Transaction, TransactionInput } from '../types'
+import type {
+  BudgetState,
+  Card,
+  CardSummary,
+  Category,
+  Credit,
+  CreditSummary,
+  Goal,
+  Transaction,
+  TransactionInput,
+} from '../types'
 import { newId } from '../types'
 
 export interface CategoryTotal {
@@ -52,43 +62,87 @@ export function useBudget() {
         let income = 0
         let expense = 0
         let saved = 0
+        let creditPaid = 0
         for (const tx of state.transactions) {
           if (tx.cardId !== card.id) continue
           if (tx.type === 'income') income += tx.amount
           else if (tx.type === 'expense') expense += tx.amount
-          else saved += tx.amount
+          else if (tx.type === 'saving') saved += tx.amount
+          else if (tx.type === 'creditPayment') creditPaid += tx.amount
         }
         return {
           ...card,
           income,
           expense,
           saved,
-          balance: card.openingBalance + income - expense - saved,
+          creditPaid,
+          balance: card.openingBalance + income - expense - saved - creditPaid,
         }
       }),
     [state.cards, state.transactions],
   )
 
+  const creditSummaries = useMemo<CreditSummary[]>(
+    () =>
+      state.credits.map((credit) => {
+        let payments = 0
+        let interest = 0
+        for (const tx of state.transactions) {
+          if (tx.creditId !== credit.id) continue
+          if (tx.type === 'creditPayment') payments += tx.amount
+          else if (tx.type === 'creditInterest') interest += tx.amount
+        }
+        const debt = credit.openingBalance + interest
+        return {
+          ...credit,
+          payments,
+          interest,
+          remaining: Math.max(0, debt - payments),
+          paid: Math.min(debt, payments),
+          overpay: Math.max(0, payments - debt),
+        }
+      }),
+    [state.credits, state.transactions],
+  )
+
   const totalBalance = useMemo(() => summaries.reduce((sum, card) => sum + card.balance, 0), [summaries])
   const activeCards = useMemo(() => summaries.filter((card) => !card.archived), [summaries])
+  const totalCredit = useMemo(
+    () => creditSummaries.reduce((sum, credit) => sum + credit.remaining, 0),
+    [creditSummaries],
+  )
+  const netWorth = useMemo(() => totalBalance - totalCredit, [totalBalance, totalCredit])
 
   const scoped = useMemo(() => {
-    const transactions = scope === 'all'
-      ? state.transactions
-      : state.transactions.filter((tx) => tx.cardId === scope)
+    const creditScope = scope.startsWith('credit:') ? scope.slice(7) : null
+    const transactions = creditScope
+      ? state.transactions.filter((tx) => tx.creditId === creditScope)
+      : scope === 'all'
+        ? state.transactions
+        : state.transactions.filter((tx) => tx.cardId === scope)
     const income = transactions.filter((tx) => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0)
     const expense = transactions.filter((tx) => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0)
     const saved = transactions.filter((tx) => tx.type === 'saving').reduce((sum, tx) => sum + tx.amount, 0)
-    const cards = scope === 'all' ? summaries : summaries.filter((card) => card.id === scope)
+    const creditPaid = transactions
+      .filter((tx) => tx.type === 'creditPayment')
+      .reduce((sum, tx) => sum + tx.amount, 0)
+    const cards = creditScope
+      ? []
+      : scope === 'all'
+        ? summaries
+        : summaries.filter((card) => card.id === scope)
     return {
       transactions: [...transactions].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt),
       income,
       expense,
       saved,
-      balance: cards.reduce((sum, card) => sum + card.balance, 0),
+      creditPaid,
+      balance: creditScope
+        ? creditSummaries.find((credit) => credit.id === creditScope)?.remaining ?? 0
+        : cards.reduce((sum, card) => sum + card.balance, 0),
       cards,
     }
-  }, [scope, state.transactions, summaries])
+  }, [scope, state.transactions, summaries, creditSummaries])
 
   const goalSaved = useMemo(
     () => state.transactions.filter((tx) => tx.type === 'saving').reduce((sum, tx) => sum + tx.amount, 0),
@@ -147,6 +201,43 @@ export function useBudget() {
     })
     if (archived && scope === id) setScope('all')
   }, [scope, setScope])
+
+  const addCredit = useCallback((input: Omit<Credit, 'id' | 'createdAt' | 'archived'>) => {
+    const id = newId()
+    setState((prev) => ({
+      ...prev,
+      credits: [...prev.credits, { ...input, id, archived: false, createdAt: Date.now() }],
+      updatedAt: stamp(prev.updatedAt),
+    }))
+    return id
+  }, [])
+
+  const updateCredit = useCallback((id: string, patch: Partial<Omit<Credit, 'id' | 'createdAt'>>) => {
+    setState((prev) => ({
+      ...prev,
+      credits: prev.credits.map((credit) => (credit.id === id ? { ...credit, ...patch } : credit)),
+      updatedAt: stamp(prev.updatedAt),
+    }))
+  }, [])
+
+  const deleteCredit = useCallback((id: string) => {
+    if (stateRef.current.transactions.some((tx) => tx.creditId === id)) return false
+    setState((prev) => ({
+      ...prev,
+      credits: prev.credits.filter((credit) => credit.id !== id),
+      updatedAt: stamp(prev.updatedAt),
+    }))
+    if (scope === `credit:${id}`) setScope('all')
+    return true
+  }, [scope, setScope])
+
+  const markCreditAccrued = useCallback((id: string, date: string) => {
+    setState((prev) => ({
+      ...prev,
+      credits: prev.credits.map((credit) => (credit.id === id ? { ...credit, lastAccrualDate: date } : credit)),
+      updatedAt: stamp(prev.updatedAt),
+    }))
+  }, [])
 
   const addCategory = useCallback((input: Omit<Category, 'id'>) => {
     const id = `custom-${newId()}`
@@ -254,7 +345,11 @@ export function useBudget() {
     }))
   }, [])
 
-  const scopeLabel = scope === 'all' ? 'Все карты' : summaries.find((card) => card.id === scope)?.bank ?? 'Карта'
+  const scopeLabel = scope.startsWith('credit:')
+    ? state.credits.find((credit) => credit.id === scope.slice(7))?.name ?? 'Кредит'
+    : scope === 'all'
+      ? 'Все карты'
+      : summaries.find((card) => card.id === scope)?.bank ?? 'Карта'
 
   return {
     state,
@@ -265,6 +360,9 @@ export function useBudget() {
     summaries,
     activeCards,
     totalBalance,
+    creditSummaries,
+    totalCredit,
+    netWorth,
     scoped,
     goalSaved,
     expenseByCategory,
@@ -272,6 +370,10 @@ export function useBudget() {
     updateCard,
     setCardArchived,
     deleteCard,
+    addCredit,
+    updateCredit,
+    deleteCredit,
+    markCreditAccrued,
     addCategory,
     updateCategory,
     deleteCategory,

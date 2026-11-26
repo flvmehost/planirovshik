@@ -1,4 +1,4 @@
-export type TransactionType = 'income' | 'expense' | 'saving'
+export type TransactionType = 'income' | 'expense' | 'saving' | 'creditPayment' | 'creditInterest'
 
 export interface Category {
   id: string
@@ -19,12 +19,31 @@ export interface Card {
   createdAt: number
 }
 
+export interface Credit {
+  id: string
+  name: string
+  bank: string
+  openingBalance: number
+  /** Годовая ставка в процентах. */
+  rate: number
+  monthlyPayment: number
+  /** Дата следующего платежа, YYYY-MM-DD. */
+  dueDate: string
+  /** Дата последнего ручного начисления процентов, YYYY-MM-DD. */
+  lastAccrualDate: string
+  color: string
+  archived: boolean
+  createdAt: number
+}
+
 export interface Transaction {
   id: string
   type: TransactionType
   amount: number
   categoryId: string
   cardId: string
+  /** Кредит, к которому относится платёж или начисление процентов. */
+  creditId?: string
   note: string
   date: string // YYYY-MM-DD (локальная дата)
   createdAt: number
@@ -38,8 +57,9 @@ export interface Goal {
 }
 
 export interface BudgetState {
-  version: 2
+  version: 3
   cards: Card[]
+  credits: Credit[]
   transactions: Transaction[]
   customCategories: Category[]
   goal: Goal
@@ -53,6 +73,15 @@ export interface CardSummary extends Card {
   income: number
   expense: number
   saved: number
+  creditPaid: number
+}
+
+export interface CreditSummary extends Credit {
+  payments: number
+  interest: number
+  remaining: number
+  paid: number
+  overpay: number
 }
 
 export function newId(): string {

@@ -1,11 +1,12 @@
 import { useMemo, type CSSProperties } from 'react'
 import { getCategory } from '../lib/categories'
 import { dateLabel, money } from '../lib/format'
-import type { Card, Category, Transaction } from '../types'
+import type { Card, Category, Credit, Transaction } from '../types'
 
 interface Props {
   transactions: Transaction[]
   cards: Card[]
+  credits?: Credit[]
   customCategories: Category[]
   onEdit: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
@@ -15,6 +16,7 @@ interface Props {
 export function TransactionList({
   transactions,
   cards,
+  credits = [],
   customCategories,
   onEdit,
   onDelete,
@@ -30,7 +32,10 @@ export function TransactionList({
     return [...map.entries()].map(([date, items]) => ({
       date,
       items,
-      net: items.reduce((sum, tx) => sum + (tx.type === 'income' ? tx.amount : -tx.amount), 0),
+      net: items.reduce(
+        (sum, tx) => sum + (tx.type === 'income' || tx.type === 'creditInterest' ? tx.amount : -tx.amount),
+        0,
+      ),
     }))
   }, [transactions])
 
@@ -57,6 +62,13 @@ export function TransactionList({
           {group.items.map((tx) => {
             const category = getCategory(tx.categoryId, customCategories, tx.type)
             const card = cards.find((item) => item.id === tx.cardId)
+            const credit = credits.find((item) => item.id === tx.creditId)
+            const isCredit = tx.type === 'creditPayment' || tx.type === 'creditInterest'
+            const secondary =
+              tx.note ||
+              (isCredit
+                ? `${tx.type === 'creditInterest' ? 'Проценты' : 'Погашение'} · ${credit?.name ?? 'Кредит'}`
+                : card?.bank || 'Карта')
             return (
               <div className="transaction-row" key={tx.id}>
                 <div
@@ -68,12 +80,13 @@ export function TransactionList({
                 <div className="transaction-info">
                   <strong>{category.label}</strong>
                   <span>
-                    {tx.note || card?.bank || 'Карта'}
-                    {card ? ` · •••• ${card.last4 || '0000'}` : ''}
+                    {secondary}
+                    {card && !isCredit ? ` · •••• ${card.last4 || '0000'}` : ''}
                   </span>
                 </div>
                 <div className={`transaction-amount mono ${tx.type === 'income' ? 'text-positive' : 'text-negative'}`}>
-                  {tx.type === 'income' ? '+' : '−'}{money(tx.amount, { decimals: true })}
+                  {tx.type === 'income' || tx.type === 'creditInterest' ? '+' : '−'}
+                  {money(tx.amount, { decimals: true })}
                 </div>
                 <div className="transaction-actions">
                   <button type="button" className="icon-button small" aria-label="Редактировать" onClick={() => onEdit(tx)}>

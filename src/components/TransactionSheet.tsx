@@ -18,8 +18,15 @@ interface Props {
 const TYPE_TABS: { id: TransactionType; label: string }[] = [
   { id: 'expense', label: '− Расход' },
   { id: 'income', label: '+ Доход' },
-  { id: 'saving', label: '→ В цель' },
+  { id: 'saving', label: '→ Цель' },
+  { id: 'creditPayment', label: '💳 Кредит' },
+  { id: 'creditInterest', label: '% Процент' },
 ]
+
+const CREDIT_CATEGORY: Partial<Record<TransactionType, string>> = {
+  creditPayment: 'credit-payment',
+  creditInterest: 'credit-interest',
+}
 
 type CategoryDraft =
   | { mode: 'create'; label: string; emoji: string; color: string }
@@ -31,11 +38,20 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
     [budget.summaries, transaction],
   )
 
-  const [type, setType] = useState<TransactionType>(transaction?.type ?? presetType ?? 'expense')
+  const initialType = transaction?.type ?? presetType ?? 'expense'
+  const [type, setType] = useState<TransactionType>(initialType)
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
-  const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? categoriesFor(presetType ?? 'expense')[0].id)
+  const [categoryId, setCategoryId] = useState(
+    transaction?.categoryId ?? CREDIT_CATEGORY[initialType] ?? categoriesFor(initialType)[0].id,
+  )
   const [cardId, setCardId] = useState(
-    transaction?.cardId ?? (budget.scope !== 'all' ? budget.scope : budget.activeCards[0]?.id ?? ''),
+    transaction?.cardId ??
+      (budget.scope.startsWith('credit:') || budget.scope === 'all'
+        ? budget.activeCards[0]?.id ?? ''
+        : budget.scope),
+  )
+  const [creditId, setCreditId] = useState(
+    transaction?.creditId ?? budget.state.credits.find((credit) => !credit.archived)?.id ?? '',
   )
   const [note, setNote] = useState(transaction?.note ?? '')
   const [date, setDate] = useState(transaction?.date ?? todayLocal())
@@ -47,14 +63,22 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
   )
   const selectedCustom = budget.state.customCategories.find((category) => category.id === categoryId)
 
+  const needsCredit = type === 'creditPayment' || type === 'creditInterest'
+  const needsCard = type !== 'creditInterest'
+
   const parsedAmount = Number(amount.replace(/\s/g, '').replace(',', '.'))
-  const valid = Number.isFinite(parsedAmount) && parsedAmount > 0 && Boolean(categoryId) && Boolean(cardId)
+  const valid =
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0 &&
+    Boolean(categoryId) &&
+    (!needsCard || Boolean(cardId)) &&
+    (!needsCredit || Boolean(creditId))
 
   const changeType = (next: TransactionType) => {
     haptic()
     setType(next)
     setCategoryDraft(null)
-    setCategoryId(categoriesFor(next)[0].id)
+    setCategoryId(CREDIT_CATEGORY[next] ?? categoriesFor(next)[0].id)
   }
 
   const openCreateCategory = () => {
@@ -118,7 +142,8 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
       type,
       amount: Math.round(parsedAmount * 100) / 100,
       categoryId,
-      cardId,
+      cardId: needsCard ? cardId : '',
+      ...(needsCredit ? { creditId } : {}),
       note: note.trim(),
       date,
     }
@@ -127,11 +152,36 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
       onSaved('Операция обновлена')
     } else {
       budget.addTransaction(input)
-      onSaved(type === 'saving' ? 'Отложено в цель' : type === 'income' ? 'Доход добавлен' : 'Расход добавлен')
+      onSaved(
+        type === 'saving'
+          ? 'Отложено в цель'
+          : type === 'income'
+            ? 'Доход добавлен'
+            : type === 'creditPayment'
+              ? 'Платёж по кредиту добавлен'
+              : type === 'creditInterest'
+                ? 'Проценты начислены'
+                : 'Расход добавлен',
+      )
     }
     haptic('medium')
     onClose()
-  }, [valid, parsedAmount, type, categoryId, cardId, note, date, transaction, budget, onSaved, onClose])
+  }, [
+    valid,
+    parsedAmount,
+    type,
+    categoryId,
+    cardId,
+    creditId,
+    needsCard,
+    needsCredit,
+    note,
+    date,
+    transaction,
+    budget,
+    onSaved,
+    onClose,
+  ])
 
   const actionRef = useRef(save)
   actionRef.current = categoryDraft ? saveCategory : save
@@ -167,7 +217,7 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
       }
     >
       <div className="sheet-pin">
-        <div className="segmented">
+        <div className={`segmented${TYPE_TABS.length > 3 ? ' segmented--wide' : ''}`}>
           {TYPE_TABS.map((tab) => (
             <button
               key={tab.id}
@@ -213,7 +263,7 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
               {category.label}
             </button>
           ))}
-          {type !== 'saving' ? (
+          {type === 'expense' || type === 'income' ? (
             <button type="button" className="chip chip--add" onClick={openCreateCategory}>
               ＋ Своя
             </button>
@@ -293,20 +343,40 @@ export function TransactionSheet({ budget, transaction, presetType, onClose, onS
         </div>
       ) : null}
 
-      <label className="field">
-        <span className="field-label">Карта</span>
-        {availableCards.length ? (
-          <select className="field-input" value={cardId} onChange={(event) => setCardId(event.target.value)}>
-            {availableCards.map((card) => (
-              <option key={card.id} value={card.id}>
-                {card.label ? `${card.bank} · ${card.label}` : card.bank} · •••• {card.last4 || '0000'}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="field-hint">Сначала добавьте карту во вкладке «Карты»</span>
-        )}
-      </label>
+      {needsCredit ? (
+        <label className="field">
+          <span className="field-label">Кредит</span>
+          {budget.state.credits.length ? (
+            <select className="field-input" value={creditId} onChange={(event) => setCreditId(event.target.value)}>
+              {budget.state.credits.map((credit) => (
+                <option key={credit.id} value={credit.id}>
+                  {credit.name}
+                  {credit.bank ? ` · ${credit.bank}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="field-hint">Сначала добавьте кредит во вкладке «Кредиты»</span>
+          )}
+        </label>
+      ) : null}
+
+      {needsCard ? (
+        <label className="field">
+          <span className="field-label">Карта</span>
+          {availableCards.length ? (
+            <select className="field-input" value={cardId} onChange={(event) => setCardId(event.target.value)}>
+              {availableCards.map((card) => (
+                <option key={card.id} value={card.id}>
+                  {card.label ? `${card.bank} · ${card.label}` : card.bank} · •••• {card.last4 || '0000'}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="field-hint">Сначала добавьте карту во вкладке «Карты»</span>
+          )}
+        </label>
+      ) : null}
 
       <div className="field-row field-row--even">
         <label className="field">

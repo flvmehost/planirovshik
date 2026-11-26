@@ -3,6 +3,8 @@ import { BottomNav, type Tab } from './components/BottomNav'
 import { CardCarousel } from './components/CardCarousel'
 import { CardSheet } from './components/CardSheet'
 import { CategoryChart } from './components/CategoryChart'
+import { CreditOperationSheet } from './components/CreditOperationSheet'
+import { CreditSheet } from './components/CreditSheet'
 import { GoalCard } from './components/GoalCard'
 import { GoalSheet } from './components/GoalSheet'
 import { ImportSheet } from './components/ImportSheet'
@@ -12,11 +14,13 @@ import { useBudget } from './hooks/useBudget'
 import { compactMoney, money } from './lib/format'
 import { clearImportToken, readImportToken } from './lib/importApi'
 import { hideKeyboard, haptic, initTelegram, notify, watchVisualViewport } from './lib/telegram'
-import type { Card, Transaction, TransactionType } from './types'
+import type { Card, Credit, Transaction, TransactionType } from './types'
 
 type SheetState =
   | { kind: 'transaction'; transaction?: Transaction; presetType?: TransactionType }
   | { kind: 'card'; card?: Card }
+  | { kind: 'credit'; credit?: Credit }
+  | { kind: 'creditOperation'; mode: 'payment' | 'interest'; creditId?: string }
   | { kind: 'goal' }
   | { kind: 'import'; token?: string }
   | null
@@ -72,7 +76,8 @@ export default function App() {
 
   const handleSaved = (message: string) => showToast(message)
 
-  const headerTitle = tab === 'home' ? 'Мой бюджет' : tab === 'history' ? 'История' : 'Мои карты'
+  const headerTitle =
+    tab === 'home' ? 'Мой бюджет' : tab === 'history' ? 'История' : tab === 'cards' ? 'Мои карты' : 'Мои кредиты'
   const historyCards = budget.summaries.filter(
     (card) => !card.archived || budget.state.transactions.some((tx) => tx.cardId === card.id),
   )
@@ -91,6 +96,9 @@ export default function App() {
         {tab === 'cards' ? (
           <button className="add-button" type="button" onClick={() => { haptic(); setSheet({ kind: 'card' }) }}>＋</button>
         ) : null}
+        {tab === 'credits' ? (
+          <button className="add-button" type="button" onClick={() => { haptic(); setSheet({ kind: 'credit' }) }}>＋</button>
+        ) : null}
       </header>
 
       <main className="content">
@@ -107,6 +115,7 @@ export default function App() {
                 <div><span>Доходы</span><strong className="mono text-positive">+{money(budget.scoped.income)}</strong></div>
                 <div><span>Расходы</span><strong className="mono text-negative">−{money(budget.scoped.expense)}</strong></div>
                 <div><span>В цель</span><strong className="mono">{money(budget.scoped.saved)}</strong></div>
+                <div><span>В кредит</span><strong className="mono">{money(budget.scoped.creditPaid)}</strong></div>
               </div>
               {budget.activeCards.length > 1 ? (
                 <div className="breakdown">
@@ -156,6 +165,7 @@ export default function App() {
               <TransactionList
                 transactions={budget.scoped.transactions.slice(0, 5)}
                 cards={budget.state.cards}
+                credits={budget.state.credits}
                 customCategories={budget.state.customCategories}
                 onEdit={(transaction) => setSheet({ kind: 'transaction', transaction })}
                 onDelete={handleDelete}
@@ -184,6 +194,18 @@ export default function App() {
                   {card.label || card.bank}
                 </button>
               ))}
+              {budget.creditSummaries
+                .filter((credit) => !credit.archived || credit.payments > 0 || credit.interest > 0)
+                .map((credit) => (
+                  <button
+                    key={credit.id}
+                    type="button"
+                    className={budget.scope === `credit:${credit.id}` ? 'is-active' : ''}
+                    onClick={() => budget.setScope(`credit:${credit.id}`)}
+                  >
+                    💳 {credit.name}
+                  </button>
+                ))}
             </div>
             <section className="panel">
               <div className="panel-head">
@@ -196,6 +218,7 @@ export default function App() {
               <TransactionList
                 transactions={budget.scoped.transactions}
                 cards={budget.state.cards}
+                credits={budget.state.credits}
                 customCategories={budget.state.customCategories}
                 onEdit={(transaction) => setSheet({ kind: 'transaction', transaction })}
                 onDelete={handleDelete}
@@ -248,6 +271,7 @@ export default function App() {
                     <span>+{money(card.income)}</span>
                     <span>−{money(card.expense)}</span>
                     <span>◎ {money(card.saved)}</span>
+                    <span>💳 {money(card.creditPaid)}</span>
                   </div>
                   <div className="bank-card__actions">
                     <button type="button" onClick={() => setSheet({ kind: 'card', card })}>Изменить</button>
@@ -294,6 +318,137 @@ export default function App() {
             ) : null}
           </>
         ) : null}
+
+        {tab === 'credits' ? (
+          <>
+            <section className="panel total-card">
+              <span className="eyebrow">ОСТАТОК ПО КРЕДИТАМ</span>
+              <strong className="mono total-card__amount">{money(budget.totalCredit, { decimals: true })}</strong>
+              <span className="muted">Чистые деньги: {money(budget.netWorth, { decimals: true })}</span>
+            </section>
+
+            <div className="credit-list">
+              {budget.creditSummaries
+                .filter((credit) => !credit.archived)
+                .map((credit) => {
+                  const total = credit.openingBalance + credit.interest
+                  const progress = total > 0 ? Math.min(100, Math.round((credit.paid / total) * 100)) : 100
+                  return (
+                    <section className="panel credit-card" key={credit.id} style={{ '--card-color': credit.color } as CSSProperties}>
+                      <div className="bank-card__head">
+                        <div className="bank-card__title">
+                          <span className="bank-card__mark" />
+                          <div>
+                            <strong>{credit.name}</strong>
+                            <span>{credit.bank || 'Кредит'}</span>
+                          </div>
+                        </div>
+                        <div className="bank-card__balance mono">{money(credit.remaining, { decimals: true })}</div>
+                      </div>
+
+                      <div className="credit-progress">
+                        <div className="credit-progress__track">
+                          <div className="credit-progress__fill" style={{ width: `${progress}%` }} />
+                        </div>
+                        <span>{progress}% выплачено</span>
+                      </div>
+
+                      <div className="bank-card__stats">
+                        <span>Было {money(credit.openingBalance, { decimals: true })}</span>
+                        <span>% {money(credit.interest, { decimals: true })}</span>
+                        <span>Платеж {money(credit.monthlyPayment, { decimals: true })}</span>
+                      </div>
+
+                      {credit.dueDate ? (
+                        <div className="credit-due">Следующий платёж: {credit.dueDate}</div>
+                      ) : null}
+                      {credit.overpay > 0 ? (
+                        <div className="credit-due">Переплата: {money(credit.overpay, { decimals: true })}</div>
+                      ) : null}
+
+                      <div className="bank-card__actions">
+                        <button
+                          type="button"
+                          disabled={credit.remaining <= 0}
+                          onClick={() => {
+                            haptic()
+                            setSheet({ kind: 'creditOperation', mode: 'payment', creditId: credit.id })
+                          }}
+                        >
+                          Погасить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            haptic()
+                            setSheet({ kind: 'creditOperation', mode: 'interest', creditId: credit.id })
+                          }}
+                        >
+                          Проценты
+                        </button>
+                        <button type="button" onClick={() => setSheet({ kind: 'credit', credit })}>
+                          Изменить
+                        </button>
+                      </div>
+                      <div className="bank-card__actions bank-card__actions--secondary">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            budget.updateCredit(credit.id, { archived: true })
+                            showToast('Кредит закрыт', {
+                              label: 'Вернуть',
+                              run: () => budget.updateCredit(credit.id, { archived: false }),
+                            })
+                          }}
+                        >
+                          Закрыть
+                        </button>
+                      </div>
+                    </section>
+                  )
+                })}
+            </div>
+
+            {budget.creditSummaries.some((credit) => credit.archived) ? (
+              <section className="panel archive">
+                <span className="eyebrow">ЗАКРЫТЫЕ КРЕДИТЫ</span>
+                {budget.creditSummaries
+                  .filter((credit) => credit.archived)
+                  .map((credit) => (
+                    <div className="archive-row" key={credit.id}>
+                      <div>
+                        <strong>{credit.name}</strong>
+                        <span className="mono">{money(credit.remaining, { decimals: true })}</span>
+                      </div>
+                      <div className="archive-row__actions">
+                        <button type="button" onClick={() => budget.updateCredit(credit.id, { archived: false })}>
+                          Вернуть
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-text"
+                          onClick={() => {
+                            if (!budget.deleteCredit(credit.id)) {
+                              showToast('Удалите сначала операции по этому кредиту')
+                            }
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </section>
+            ) : null}
+
+            {!budget.creditSummaries.length ? (
+              <div className="empty-state">
+                <span className="empty-state__icon">💳</span>
+                <p>Добавьте кредит, чтобы отслеживать долг и платежи</p>
+              </div>
+            ) : null}
+          </>
+        ) : null}
       </main>
 
       <BottomNav active={tab} onChange={(next) => { haptic(); setTab(next) }} />
@@ -314,6 +469,20 @@ export default function App() {
 
       {sheet?.kind === 'card' ? (
         <CardSheet budget={budget} card={sheet.card} onClose={closeSheet} onSaved={handleSaved} />
+      ) : null}
+
+      {sheet?.kind === 'credit' ? (
+        <CreditSheet budget={budget} credit={sheet.credit} onClose={closeSheet} onSaved={handleSaved} />
+      ) : null}
+
+      {sheet?.kind === 'creditOperation' ? (
+        <CreditOperationSheet
+          budget={budget}
+          mode={sheet.mode}
+          creditId={sheet.creditId}
+          onClose={closeSheet}
+          onSaved={handleSaved}
+        />
       ) : null}
 
       {sheet?.kind === 'goal' ? (

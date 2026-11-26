@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type Tab = 'home' | 'history' | 'cards'
+export type Tab = 'home' | 'history' | 'cards' | 'credits'
 
 interface Props {
   active: Tab
@@ -21,9 +21,20 @@ const ICONS: Record<Tab, ReactNode> = {
       <path d="M2 10h20M6 15h4" />
     </>
   ),
+  credits: (
+    <>
+      <path d="M3 7h18v10H3z" />
+      <path d="M7 12h10M12 9v6" />
+    </>
+  ),
 }
 
-const LABELS: Record<Tab, string> = { home: 'Главная', history: 'История', cards: 'Карты' }
+const LABELS: Record<Tab, string> = {
+  home: 'Главная',
+  history: 'История',
+  cards: 'Карты',
+  credits: 'Кредиты',
+}
 
 export function BottomNav({ active, onChange }: Props) {
   return (

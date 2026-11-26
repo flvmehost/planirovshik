@@ -1,13 +1,13 @@
-import type { BudgetState, Category, TransactionType } from '../types'
+import type { BudgetState, Category, Credit, TransactionType } from '../types'
 import { cloudGet, cloudSet } from './telegram'
 
 const STATE_KEY = 'planirovshik.budget.v1'
 const SCOPE_KEY = 'planirovshik.scope.v1'
-const TYPES: TransactionType[] = ['income', 'expense', 'saving']
+const TYPES: TransactionType[] = ['income', 'expense', 'saving', 'creditPayment', 'creditInterest']
 
 export function defaultState(): BudgetState {
   return {
-    version: 2,
+    version: 3,
     cards: [
       {
         id: 'default-card',
@@ -20,6 +20,7 @@ export function defaultState(): BudgetState {
         createdAt: Date.now(),
       },
     ],
+    credits: [],
     transactions: [],
     customCategories: [],
     goal: { title: 'Цель накоплений', target: 100_000 },
@@ -44,10 +45,37 @@ function readCategories(value: unknown): Category[] {
   })
 }
 
+function readCredits(value: unknown): Credit[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is Credit => {
+      if (!item || typeof item !== 'object') return false
+      const credit = item as Partial<Credit>
+      return (
+        typeof credit.id === 'string' &&
+        typeof credit.name === 'string' &&
+        credit.name.trim().length > 0 &&
+        typeof credit.openingBalance === 'number'
+      )
+    })
+    .map((credit) => ({
+      ...credit,
+      bank: credit.bank ?? '',
+      rate: typeof credit.rate === 'number' ? credit.rate : 0,
+      monthlyPayment: typeof credit.monthlyPayment === 'number' ? credit.monthlyPayment : 0,
+      dueDate: credit.dueDate ?? '',
+      lastAccrualDate: credit.lastAccrualDate ?? '',
+      color: credit.color ?? '#F97316',
+      archived: credit.archived ?? false,
+      createdAt: typeof credit.createdAt === 'number' ? credit.createdAt : Date.now(),
+    }))
+}
+
 /** Читает состояние любой поддерживаемой версии и приводит его к текущей. */
 interface StoredState {
   version?: number
   cards?: unknown
+  credits?: unknown
   transactions?: unknown
   customCategories?: unknown
   goal?: { title?: string; target?: number }
@@ -57,12 +85,13 @@ interface StoredState {
 function migrateState(value: unknown): BudgetState | null {
   if (!value || typeof value !== 'object') return null
   const state = value as StoredState
-  if (state.version !== 1 && state.version !== 2) return null
+  if (state.version !== 1 && state.version !== 2 && state.version !== 3) return null
   if (!Array.isArray(state.cards) || !Array.isArray(state.transactions)) return null
   if (!state.goal || typeof state.goal.target !== 'number') return null
   return {
-    version: 2,
+    version: 3,
     cards: state.cards as BudgetState['cards'],
+    credits: readCredits(state.credits),
     transactions: state.transactions as BudgetState['transactions'],
     customCategories: readCategories(state.customCategories),
     goal: { title: state.goal.title ?? 'Цель накоплений', target: state.goal.target },
