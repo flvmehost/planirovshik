@@ -16,4 +16,4 @@ services:
       - key: WEBHOOK_SECRET
         generateValue: true
       - key: WEB_APP_URL
-        value: https://flvmehost.github.io/planirovshik/?v=11
+        value: https://flvmehost.github.io/planirovshik/?v=12

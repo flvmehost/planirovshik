@@ -31,6 +31,14 @@ interface ToastState {
   action?: { label: string; run: () => void }
 }
 
+function paymentWord(count: number): string {
+  const mod10 = count % 10
+  const mod100 = count % 100
+  if (mod10 === 1 && mod100 !== 11) return 'платёж'
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'платежа'
+  return 'платежей'
+}
+
 export default function App() {
   const budget = useBudget()
   const [tab, setTab] = useState<Tab>('home')
@@ -333,6 +341,8 @@ export default function App() {
                 .map((credit) => {
                   const total = credit.openingBalance + credit.interest
                   const progress = total > 0 ? Math.min(100, Math.round((credit.paid / total) * 100)) : 100
+                  const remainingPayments =
+                    credit.monthlyPayment > 0 ? Math.ceil(credit.remaining / credit.monthlyPayment) : null
                   return (
                     <section className="panel credit-card" key={credit.id} style={{ '--card-color': credit.color } as CSSProperties}>
                       <div className="bank-card__head">
@@ -358,6 +368,12 @@ export default function App() {
                         <span>% {money(credit.interest, { decimals: true })}</span>
                         <span>Платеж {money(credit.monthlyPayment, { decimals: true })}</span>
                       </div>
+
+                      {remainingPayments !== null ? (
+                        <div className="credit-due">
+                          Осталось {remainingPayments} {paymentWord(remainingPayments)}
+                        </div>
+                      ) : null}
 
                       {credit.dueDate ? (
                         <div className="credit-due">Следующий платёж: {credit.dueDate}</div>
