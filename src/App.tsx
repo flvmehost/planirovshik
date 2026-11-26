@@ -5,10 +5,12 @@ import { CardSheet } from './components/CardSheet'
 import { CategoryChart } from './components/CategoryChart'
 import { GoalCard } from './components/GoalCard'
 import { GoalSheet } from './components/GoalSheet'
+import { ImportSheet } from './components/ImportSheet'
 import { TransactionList } from './components/TransactionList'
 import { TransactionSheet } from './components/TransactionSheet'
 import { useBudget } from './hooks/useBudget'
 import { compactMoney, money } from './lib/format'
+import { clearImportToken, readImportToken } from './lib/importApi'
 import { hideKeyboard, haptic, initTelegram, notify, watchVisualViewport } from './lib/telegram'
 import type { Card, Transaction, TransactionType } from './types'
 
@@ -16,6 +18,7 @@ type SheetState =
   | { kind: 'transaction'; transaction?: Transaction; presetType?: TransactionType }
   | { kind: 'card'; card?: Card }
   | { kind: 'goal' }
+  | { kind: 'import'; token?: string }
   | null
 
 interface ToastState {
@@ -27,12 +30,18 @@ interface ToastState {
 export default function App() {
   const budget = useBudget()
   const [tab, setTab] = useState<Tab>('home')
-  const [sheet, setSheet] = useState<SheetState>(null)
+  const [importToken] = useState(() => readImportToken())
+  const [sheet, setSheet] = useState<SheetState>(() =>
+    importToken ? { kind: 'import', token: importToken } : null,
+  )
   const [toast, setToast] = useState<ToastState | null>(null)
   const [, setThemeTick] = useState(0)
 
   useEffect(() => initTelegram(() => setThemeTick((value) => value + 1)), [])
   useEffect(() => watchVisualViewport(), [])
+  useEffect(() => {
+    if (importToken) clearImportToken()
+  }, [importToken])
 
   const showToast = useCallback((message: string, action?: ToastState['action']) => {
     setToast({ id: Date.now(), message, action })
@@ -198,6 +207,24 @@ export default function App() {
 
         {tab === 'cards' ? (
           <>
+            <section className="panel import-entry">
+              <div>
+                <span className="eyebrow">ИМПОРТ</span>
+                <h3>Загрузить выписку</h3>
+                <p className="muted">PDF из банка — операции добавятся списком на проверку</p>
+              </div>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  haptic()
+                  setSheet({ kind: 'import' })
+                }}
+              >
+                Выбрать файл
+              </button>
+            </section>
+
             <section className="panel total-card">
               <span className="eyebrow">СУММА ПО ВСЕМ КАРТАМ</span>
               <strong className="mono total-card__amount">{money(budget.totalBalance, { decimals: true })}</strong>
@@ -291,6 +318,15 @@ export default function App() {
 
       {sheet?.kind === 'goal' ? (
         <GoalSheet budget={budget} onClose={closeSheet} onSaved={handleSaved} />
+      ) : null}
+
+      {sheet?.kind === 'import' ? (
+        <ImportSheet
+          budget={budget}
+          initialToken={sheet.token}
+          onClose={closeSheet}
+          onSaved={handleSaved}
+        />
       ) : null}
 
       {toast ? (

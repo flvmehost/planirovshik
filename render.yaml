@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: planirovshik-bot
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: bot
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEB_APP_URL
+        value: https://flvmehost.github.io/planirovshik/?v=7

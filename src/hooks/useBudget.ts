@@ -205,6 +205,20 @@ export function useBudget() {
     return id
   }, [])
 
+  const addTransactions = useCallback((inputs: TransactionInput[]) => {
+    if (!inputs.length) return 0
+    const now = Date.now()
+    setState((prev) => ({
+      ...prev,
+      transactions: [
+        ...prev.transactions,
+        ...inputs.map((input, index) => ({ ...input, id: newId(), createdAt: now + index })),
+      ],
+      updatedAt: stamp(prev.updatedAt),
+    }))
+    return inputs.length
+  }, [])
+
   const updateTransaction = useCallback((id: string, input: TransactionInput) => {
     setState((prev) => ({
       ...prev,
@@ -244,6 +258,7 @@ export function useBudget() {
 
   return {
     state,
+    hydrated,
     scope,
     setScope,
     scopeLabel,
@@ -261,6 +276,7 @@ export function useBudget() {
     updateCategory,
     deleteCategory,
     addTransaction,
+    addTransactions,
     updateTransaction,
     deleteTransaction,
     restoreTransaction,

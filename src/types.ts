@@ -28,6 +28,8 @@ export interface Transaction {
   note: string
   date: string // YYYY-MM-DD (локальная дата)
   createdAt: number
+  /** Отпечаток строки выписки, чтобы не импортировать её повторно. */
+  sourceId?: string
 }
 
 export interface Goal {
