@@ -27,8 +27,14 @@ export interface Credit {
   /** Годовая ставка в процентах. */
   rate: number
   monthlyPayment: number
-  /** Дата следующего платежа, YYYY-MM-DD. */
+  /** Устаревшее поле, осталось для миграции старых данных. */
   dueDate: string
+  /** Дата первого платежа по графику, YYYY-MM-DD. */
+  firstPaymentDate: string
+  /** Дата последнего платежа по графику, YYYY-MM-DD. */
+  lastPaymentDate: string
+  /** Срок кредита в месяцах (количество платежей). */
+  termMonths: number
   /** Дата последнего ручного начисления процентов, YYYY-MM-DD. */
   lastAccrualDate: string
   color: string
@@ -57,7 +63,7 @@ export interface Goal {
 }
 
 export interface BudgetState {
-  version: 3
+  version: 4
   cards: Card[]
   credits: Credit[]
   transactions: Transaction[]
@@ -82,6 +88,9 @@ export interface CreditSummary extends Credit {
   remaining: number
   paid: number
   overpay: number
+  paymentCount: number
+  remainingPayments: number
+  nextPaymentDate: string
 }
 
 export function newId(): string {

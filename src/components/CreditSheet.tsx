@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Budget } from '../hooks/useBudget'
 import { CARD_COLORS } from '../lib/categories'
+import { addMonths, nextPaymentDate, termMonthsBetween } from '../lib/creditSchedule'
 import { todayLocal } from '../lib/format'
 import { haptic, isTelegram, notify, setupMainButton } from '../lib/telegram'
 import type { Credit } from '../types'
@@ -18,6 +19,9 @@ function parseNumber(value: string): number {
 }
 
 export function CreditSheet({ budget, credit, onClose, onSaved }: Props) {
+  const initialFirst = credit?.firstPaymentDate || credit?.dueDate || todayLocal()
+  const initialTerm = credit?.termMonths && credit.termMonths > 0 ? String(credit.termMonths) : '12'
+
   const [name, setName] = useState(credit?.name ?? '')
   const [bank, setBank] = useState(credit?.bank ?? '')
   const [openingBalance, setOpeningBalance] = useState(credit ? String(credit.openingBalance) : '')
@@ -25,12 +29,17 @@ export function CreditSheet({ budget, credit, onClose, onSaved }: Props) {
   const [monthlyPayment, setMonthlyPayment] = useState(
     credit && credit.monthlyPayment ? String(credit.monthlyPayment) : '',
   )
-  const [dueDate, setDueDate] = useState(credit?.dueDate ?? '')
+  const [firstPaymentDate, setFirstPaymentDate] = useState(initialFirst)
+  const [lastPaymentDate, setLastPaymentDate] = useState(
+    credit?.lastPaymentDate || addMonths(initialFirst, Number(initialTerm) - 1),
+  )
+  const [term, setTerm] = useState(initialTerm)
   const [color, setColor] = useState(credit?.color ?? CARD_COLORS[1])
 
   const parsedOpening = parseNumber(openingBalance)
   const parsedRate = rate.trim() ? parseNumber(rate) : 0
   const parsedPayment = monthlyPayment.trim() ? parseNumber(monthlyPayment) : 0
+  const parsedTerm = Number(term)
   const valid =
     name.trim().length > 0 &&
     Number.isFinite(parsedOpening) &&
@@ -38,7 +47,36 @@ export function CreditSheet({ budget, credit, onClose, onSaved }: Props) {
     Number.isFinite(parsedRate) &&
     parsedRate >= 0 &&
     Number.isFinite(parsedPayment) &&
-    parsedPayment >= 0
+    parsedPayment >= 0 &&
+    Boolean(firstPaymentDate) &&
+    Boolean(lastPaymentDate) &&
+    firstPaymentDate <= lastPaymentDate &&
+    Number.isInteger(parsedTerm) &&
+    parsedTerm > 0
+
+  const handleFirstChange = (value: string) => {
+    setFirstPaymentDate(value)
+    const months = Number(term)
+    if (value && Number.isInteger(months) && months > 0) {
+      setLastPaymentDate(addMonths(value, months - 1))
+    } else if (value && lastPaymentDate) {
+      setTerm(String(termMonthsBetween(value, lastPaymentDate)))
+    }
+  }
+
+  const handleLastChange = (value: string) => {
+    setLastPaymentDate(value)
+    if (firstPaymentDate && value) setTerm(String(termMonthsBetween(firstPaymentDate, value)))
+  }
+
+  const handleTermChange = (raw: string) => {
+    const value = raw.replace(/\D/g, '')
+    setTerm(value)
+    const months = Number(value)
+    if (firstPaymentDate && Number.isInteger(months) && months > 0) {
+      setLastPaymentDate(addMonths(firstPaymentDate, months - 1))
+    }
+  }
 
   const save = useCallback(() => {
     if (!valid) {
@@ -51,7 +89,10 @@ export function CreditSheet({ budget, credit, onClose, onSaved }: Props) {
       openingBalance: Math.round(parsedOpening * 100) / 100,
       rate: Math.round(parsedRate * 100) / 100,
       monthlyPayment: Math.round(parsedPayment * 100) / 100,
-      dueDate,
+      firstPaymentDate,
+      lastPaymentDate,
+      termMonths: parsedTerm,
+      dueDate: nextPaymentDate(firstPaymentDate, parsedTerm),
       lastAccrualDate: credit?.lastAccrualDate ?? todayLocal(),
       color,
     }
@@ -64,7 +105,22 @@ export function CreditSheet({ budget, credit, onClose, onSaved }: Props) {
     }
     haptic('medium')
     onClose()
-  }, [valid, name, bank, parsedOpening, parsedRate, parsedPayment, dueDate, credit, color, budget, onSaved, onClose])
+  }, [
+    valid,
+    name,
+    bank,
+    parsedOpening,
+    parsedRate,
+    parsedPayment,
+    firstPaymentDate,
+    lastPaymentDate,
+    parsedTerm,
+    credit,
+    color,
+    budget,
+    onSaved,
+    onClose,
+  ])
 
   const saveRef = useRef(save)
   saveRef.current = save
@@ -142,10 +198,43 @@ export function CreditSheet({ budget, credit, onClose, onSaved }: Props) {
         </label>
       </div>
 
-      <label className="field">
-        <span className="field-label">Дата следующего платежа</span>
-        <input className="field-input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-      </label>
+      <div className="field-group">
+        <span className="field-label">График платежей</span>
+        <div className="field-row field-row--even">
+          <label className="field">
+            <span className="field-label">Первый платёж</span>
+            <input
+              className="field-input"
+              type="date"
+              value={firstPaymentDate}
+              onChange={(event) => handleFirstChange(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Последний платёж</span>
+            <input
+              className="field-input"
+              type="date"
+              value={lastPaymentDate}
+              onChange={(event) => handleLastChange(event.target.value)}
+            />
+          </label>
+        </div>
+        <label className="field">
+          <span className="field-label">Срок кредита, мес.</span>
+          <input
+            className="field-input mono"
+            inputMode="numeric"
+            placeholder="12"
+            value={term}
+            onChange={(event) => handleTermChange(event.target.value)}
+          />
+        </label>
+        <p className="field-hint">
+          Срок — это количество ежемесячных платежей. Измените любую дату или срок — остальные поля
+          пересчитаются автоматически.
+        </p>
+      </div>
 
       <div className="field">
         <span className="field-label">Цвет</span>

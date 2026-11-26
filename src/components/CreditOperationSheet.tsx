@@ -41,7 +41,7 @@ export function CreditOperationSheet({ budget, mode, creditId, onClose, onSaved 
 
   const suggestion = useMemo(() => {
     if (!credit || !credit.rate || !credit.remaining) return 0
-    const days = daysSince(credit.lastAccrualDate || credit.dueDate, credit.createdAt)
+    const days = daysSince(credit.lastAccrualDate || credit.firstPaymentDate || credit.dueDate, credit.createdAt)
     return Math.round((credit.remaining * credit.rate * days) / 100 / 365 * 100) / 100
   }, [credit])
 
@@ -144,7 +144,7 @@ export function CreditOperationSheet({ budget, mode, creditId, onClose, onSaved 
           {mode === 'interest' ? (
             <small>
               Ставка {credit.rate}%. Расчёт: {money(suggestion, { decimals: true })} за{' '}
-              {daysSince(credit.lastAccrualDate || credit.dueDate, credit.createdAt)} дн.
+              {daysSince(credit.lastAccrualDate || credit.firstPaymentDate || credit.dueDate, credit.createdAt)} дн.
             </small>
           ) : null}
         </div>

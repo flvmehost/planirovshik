@@ -11,6 +11,7 @@ import { ImportSheet } from './components/ImportSheet'
 import { TransactionList } from './components/TransactionList'
 import { TransactionSheet } from './components/TransactionSheet'
 import { useBudget } from './hooks/useBudget'
+import { shortDate } from './lib/creditSchedule'
 import { compactMoney, money } from './lib/format'
 import { clearImportToken, readImportToken } from './lib/importApi'
 import { hideKeyboard, haptic, initTelegram, notify, watchVisualViewport } from './lib/telegram'
@@ -341,8 +342,7 @@ export default function App() {
                 .map((credit) => {
                   const total = credit.openingBalance + credit.interest
                   const progress = total > 0 ? Math.min(100, Math.round((credit.paid / total) * 100)) : 100
-                  const remainingPayments =
-                    credit.monthlyPayment > 0 ? Math.ceil(credit.remaining / credit.monthlyPayment) : null
+                  const remainingPayments = credit.remainingPayments
                   return (
                     <section className="panel credit-card" key={credit.id} style={{ '--card-color': credit.color } as CSSProperties}>
                       <div className="bank-card__head">
@@ -369,14 +369,21 @@ export default function App() {
                         <span>Платеж {money(credit.monthlyPayment, { decimals: true })}</span>
                       </div>
 
-                      {remainingPayments !== null ? (
+                      {credit.firstPaymentDate && credit.lastPaymentDate ? (
                         <div className="credit-due">
-                          Осталось {remainingPayments} {paymentWord(remainingPayments)}
+                          Срок: {shortDate(credit.firstPaymentDate)} — {shortDate(credit.lastPaymentDate)} ·{' '}
+                          {credit.termMonths} мес.
                         </div>
                       ) : null}
 
-                      {credit.dueDate ? (
-                        <div className="credit-due">Следующий платёж: {credit.dueDate}</div>
+                      {credit.nextPaymentDate ? (
+                        <div className="credit-due">Следующий платёж: {shortDate(credit.nextPaymentDate)}</div>
+                      ) : null}
+
+                      {remainingPayments > 0 ? (
+                        <div className="credit-due">
+                          Осталось {remainingPayments} {paymentWord(remainingPayments)}
+                        </div>
                       ) : null}
                       {credit.overpay > 0 ? (
                         <div className="credit-due">Переплата: {money(credit.overpay, { decimals: true })}</div>

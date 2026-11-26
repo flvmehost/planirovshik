@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getCategory } from '../lib/categories'
+import { nextPaymentDate } from '../lib/creditSchedule'
 import { hydrateFromCloud, loadLocal, loadScope, saveLocal, saveScope, scheduleCloudSync } from '../lib/storage'
 import type {
   BudgetState,
@@ -87,19 +88,32 @@ export function useBudget() {
       state.credits.map((credit) => {
         let payments = 0
         let interest = 0
+        let paymentCount = 0
         for (const tx of state.transactions) {
           if (tx.creditId !== credit.id) continue
-          if (tx.type === 'creditPayment') payments += tx.amount
-          else if (tx.type === 'creditInterest') interest += tx.amount
+          if (tx.type === 'creditPayment') {
+            payments += tx.amount
+            paymentCount += 1
+          } else if (tx.type === 'creditInterest') interest += tx.amount
         }
         const debt = credit.openingBalance + interest
+        const remaining = Math.max(0, debt - payments)
+        const term = credit.termMonths > 0 ? credit.termMonths : 0
         return {
           ...credit,
           payments,
           interest,
-          remaining: Math.max(0, debt - payments),
+          remaining,
           paid: Math.min(debt, payments),
           overpay: Math.max(0, payments - debt),
+          paymentCount,
+          remainingPayments:
+            term > 0
+              ? Math.max(0, term - paymentCount)
+              : credit.monthlyPayment > 0
+                ? Math.ceil(remaining / credit.monthlyPayment)
+                : 0,
+          nextPaymentDate: nextPaymentDate(credit.firstPaymentDate, term),
         }
       }),
     [state.credits, state.transactions],

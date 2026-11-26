@@ -1,4 +1,6 @@
-import type { BudgetState, Category, Credit, TransactionType } from '../types'
+import type { BudgetState, Category, Credit, Transaction, TransactionType } from '../types'
+import { addMonths } from './creditSchedule'
+import { todayLocal } from './format'
 import { cloudGet, cloudSet } from './telegram'
 
 const STATE_KEY = 'planirovshik.budget.v1'
@@ -7,7 +9,7 @@ const TYPES: TransactionType[] = ['income', 'expense', 'saving', 'creditPayment'
 
 export function defaultState(): BudgetState {
   return {
-    version: 3,
+    version: 4,
     cards: [
       {
         id: 'default-card',
@@ -45,8 +47,11 @@ function readCategories(value: unknown): Category[] {
   })
 }
 
-function readCredits(value: unknown): Credit[] {
+function readCredits(value: unknown, rawTransactions: unknown): Credit[] {
   if (!Array.isArray(value)) return []
+  const transactions: Transaction[] = Array.isArray(rawTransactions)
+    ? (rawTransactions as Transaction[])
+    : []
   return value
     .filter((item): item is Credit => {
       if (!item || typeof item !== 'object') return false
@@ -58,17 +63,42 @@ function readCredits(value: unknown): Credit[] {
         typeof credit.openingBalance === 'number'
       )
     })
-    .map((credit) => ({
-      ...credit,
-      bank: credit.bank ?? '',
-      rate: typeof credit.rate === 'number' ? credit.rate : 0,
-      monthlyPayment: typeof credit.monthlyPayment === 'number' ? credit.monthlyPayment : 0,
-      dueDate: credit.dueDate ?? '',
-      lastAccrualDate: credit.lastAccrualDate ?? '',
-      color: credit.color ?? '#F97316',
-      archived: credit.archived ?? false,
-      createdAt: typeof credit.createdAt === 'number' ? credit.createdAt : Date.now(),
-    }))
+    .map((credit) => {
+      const monthlyPayment = typeof credit.monthlyPayment === 'number' ? credit.monthlyPayment : 0
+      const creditTransactions = transactions.filter((tx) => tx.creditId === credit.id)
+      const paymentCount = creditTransactions.filter((tx) => tx.type === 'creditPayment').length
+      const interest = creditTransactions
+        .filter((tx) => tx.type === 'creditInterest')
+        .reduce((sum, tx) => sum + (Number.isFinite(tx.amount) ? tx.amount : 0), 0)
+      const paid = creditTransactions
+        .filter((tx) => tx.type === 'creditPayment')
+        .reduce((sum, tx) => sum + (Number.isFinite(tx.amount) ? tx.amount : 0), 0)
+      const remaining = Math.max(0, credit.openingBalance + interest - paid)
+
+      // Для старых кредитов восстанавливаем график из даты платежа и суммы долга.
+      const firstPaymentDate = credit.firstPaymentDate || credit.dueDate || todayLocal()
+      const termMonths =
+        typeof credit.termMonths === 'number' && credit.termMonths > 0
+          ? credit.termMonths
+          : monthlyPayment > 0
+            ? paymentCount + Math.max(1, Math.ceil(remaining / monthlyPayment))
+            : 12
+
+      return {
+        ...credit,
+        bank: credit.bank ?? '',
+        rate: typeof credit.rate === 'number' ? credit.rate : 0,
+        monthlyPayment,
+        dueDate: credit.dueDate ?? firstPaymentDate,
+        firstPaymentDate,
+        lastPaymentDate: credit.lastPaymentDate || addMonths(firstPaymentDate, termMonths - 1),
+        termMonths,
+        lastAccrualDate: credit.lastAccrualDate ?? '',
+        color: credit.color ?? '#F97316',
+        archived: credit.archived ?? false,
+        createdAt: typeof credit.createdAt === 'number' ? credit.createdAt : Date.now(),
+      }
+    })
 }
 
 /** Читает состояние любой поддерживаемой версии и приводит его к текущей. */
@@ -85,13 +115,13 @@ interface StoredState {
 function migrateState(value: unknown): BudgetState | null {
   if (!value || typeof value !== 'object') return null
   const state = value as StoredState
-  if (state.version !== 1 && state.version !== 2 && state.version !== 3) return null
+  if (state.version !== 1 && state.version !== 2 && state.version !== 3 && state.version !== 4) return null
   if (!Array.isArray(state.cards) || !Array.isArray(state.transactions)) return null
   if (!state.goal || typeof state.goal.target !== 'number') return null
   return {
-    version: 3,
+    version: 4,
     cards: state.cards as BudgetState['cards'],
-    credits: readCredits(state.credits),
+    credits: readCredits(state.credits, state.transactions),
     transactions: state.transactions as BudgetState['transactions'],
     customCategories: readCategories(state.customCategories),
     goal: { title: state.goal.title ?? 'Цель накоплений', target: state.goal.target },
