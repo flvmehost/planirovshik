@@ -15,8 +15,12 @@ export function importApiBase(): string {
   return ''
 }
 
+const FETCH_TIMEOUT_MS = 15_000
+
 export class ImportApiError extends Error {
-  constructor(public readonly code: 'NOT_CONFIGURED' | 'NOT_FOUND' | 'FORBIDDEN' | 'FAILED') {
+  constructor(
+    public readonly code: 'NOT_CONFIGURED' | 'NOT_FOUND' | 'FORBIDDEN' | 'FAILED' | 'TIMEOUT',
+  ) {
     super(code)
   }
 }
@@ -26,17 +30,29 @@ export async function fetchStatementFile(token: string): Promise<File> {
   const base = importApiBase()
   if (!base) throw new ImportApiError('NOT_CONFIGURED')
 
-  const initData = getWebApp()?.initData
-  const response = await fetch(`${base}/api/import/${encodeURIComponent(token)}`, {
-    headers: initData ? { 'X-Telegram-Init-Data': initData } : undefined,
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const initData = getWebApp()?.initData
+    const response = await fetch(`${base}/api/import/${encodeURIComponent(token)}`, {
+      headers: initData ? { 'X-Telegram-Init-Data': initData } : undefined,
+      signal: controller.signal,
+    })
 
-  if (response.status === 404) throw new ImportApiError('NOT_FOUND')
-  if (response.status === 403) throw new ImportApiError('FORBIDDEN')
-  if (!response.ok) throw new ImportApiError('FAILED')
+    if (response.status === 404) throw new ImportApiError('NOT_FOUND')
+    if (response.status === 403) throw new ImportApiError('FORBIDDEN')
+    if (!response.ok) throw new ImportApiError('FAILED')
 
-  const blob = await response.blob()
-  return new File([blob], 'statement.pdf', { type: 'application/pdf' })
+    const blob = await response.blob()
+    return new File([blob], 'statement.pdf', { type: 'application/pdf' })
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === 'AbortError') {
+      throw new ImportApiError('TIMEOUT')
+    }
+    throw cause
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export function importErrorMessage(error: unknown): string {
@@ -49,6 +65,9 @@ export function importErrorMessage(error: unknown): string {
     }
     if (error.code === 'FORBIDDEN') {
       return 'Эта выписка привязана к другому аккаунту Telegram.'
+    }
+    if (error.code === 'TIMEOUT') {
+      return 'Сервер не ответил вовремя. Попробуйте ещё раз или загрузите PDF прямо здесь.'
     }
   }
   return 'Не удалось получить выписку из чата. Пришлите PDF боту заново или загрузите файл здесь.'

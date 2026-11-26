@@ -246,14 +246,29 @@ export function setVerticalSwipes(enabled: boolean): void {
   else tg.disableVerticalSwipes?.()
 }
 
+const CLOUD_TIMEOUT_MS = 4000
+
+/**
+ * CloudStorage в некоторых WebView может не вызвать колбэк. Таймаут гарантирует,
+ * что приложение не останется на «Загружаю данные…» и импорт всё равно заработает.
+ */
 export function cloudGet(key: string): Promise<string | null> {
   const storage = isTelegram() ? getWebApp()?.CloudStorage : undefined
   if (!storage) return Promise.resolve(null)
   return new Promise((resolve) => {
+    let finished = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const finish = (value: string | null) => {
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    timer = setTimeout(() => finish(null), CLOUD_TIMEOUT_MS)
     try {
-      storage.getItem(key, (error, value) => resolve(error ? null : value ?? null))
+      storage.getItem(key, (error, value) => finish(error ? null : value ?? null))
     } catch {
-      resolve(null)
+      finish(null)
     }
   })
 }
@@ -262,10 +277,19 @@ export function cloudSet(key: string, value: string): Promise<void> {
   const storage = isTelegram() ? getWebApp()?.CloudStorage : undefined
   if (!storage) return Promise.resolve()
   return new Promise((resolve) => {
-    try {
-      storage.setItem(key, value, () => resolve())
-    } catch {
+    let finished = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const finish = () => {
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
       resolve()
+    }
+    timer = setTimeout(finish, CLOUD_TIMEOUT_MS)
+    try {
+      storage.setItem(key, value, () => finish())
+    } catch {
+      finish()
     }
   })
 }

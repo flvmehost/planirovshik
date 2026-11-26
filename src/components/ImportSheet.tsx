@@ -49,14 +49,57 @@ export function ImportSheet({ budget, initialToken, onClose, onSaved }: Props) {
   const [rows, setRows] = useState<ReviewRow[]>([])
   const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [parsed, setParsed] = useState<{ rows: ParsedRow[]; warnings: string[] } | null>(null)
 
   const cards = useMemo(
     () => budget.summaries.filter((card) => !card.archived),
     [budget.summaries],
   )
 
+  // Актуальные данные нужны только в момент сборки строк — импорт не должен ждать CloudStorage.
+  const budgetRef = useRef(budget)
+  budgetRef.current = budget
+  const cardsRef = useRef(cards)
+  cardsRef.current = cards
+
   const selected = rows.filter((row) => row.selected)
   const selectedCount = selected.length
+
+  const applyParsed = useCallback((value: { rows: ParsedRow[]; warnings: string[] }) => {
+    const current = budgetRef.current
+    const currentCards = cardsRef.current
+    const existing = new Set(
+      current.state.transactions.map((transaction) => transaction.sourceId).filter(Boolean),
+    )
+    setRows(
+      value.rows.map((row: ParsedRow, index: number) => {
+        const card =
+          currentCards.find((item) => item.last4 && item.last4 === row.cardLast4) ?? currentCards[0]
+        const available = categoriesFor(row.type, current.state.customCategories)
+        const category =
+          available.find((item) => item.id === row.categoryKey) ??
+          available.find((item) => item.id === 'other-expense') ??
+          available[0]
+        const duplicate = existing.has(row.sourceId)
+        return {
+          key: `${row.sourceId}-${index}`,
+          sourceId: row.sourceId,
+          date: row.date,
+          amount: String(row.amount),
+          type: row.type,
+          description: row.description,
+          last4: row.cardLast4,
+          cardId: card?.id ?? '',
+          categoryId: category?.id ?? '',
+          selected: !row.suggestedSkip && !duplicate,
+          duplicate,
+          skipReason: row.skipReason,
+        }
+      }),
+    )
+    setWarnings(value.warnings)
+    setStage('review')
+  }, [])
 
   const loadFile = useCallback(
     async (file: File) => {
@@ -64,51 +107,34 @@ export function ImportSheet({ budget, initialToken, onClose, onSaved }: Props) {
       setStage('loading')
       try {
         const text = await extractPdfText(file)
-        const parsed = parseStatementText(text)
-        if (!parsed.rows.length) {
+        const result = parseStatementText(text)
+        if (!result.rows.length) {
           setError('В файле не найдено операций. Проверьте, что это выписка по карте.')
           setStage('pick')
           return
         }
-        const existing = new Set(
-          budget.state.transactions.map((transaction) => transaction.sourceId).filter(Boolean),
-        )
-        setRows(
-          parsed.rows.map((row: ParsedRow, index: number) => {
-            const card =
-              cards.find((item) => item.last4 && item.last4 === row.cardLast4) ?? cards[0]
-            const available = categoriesFor(row.type, budget.state.customCategories)
-            const category =
-              available.find((item) => item.id === row.categoryKey) ??
-              available.find((item) => item.id === 'other-expense') ??
-              available[0]
-            const duplicate = existing.has(row.sourceId)
-            return {
-              key: `${row.sourceId}-${index}`,
-              sourceId: row.sourceId,
-              date: row.date,
-              amount: String(row.amount),
-              type: row.type,
-              description: row.description,
-              last4: row.cardLast4,
-              cardId: card?.id ?? '',
-              categoryId: category?.id ?? '',
-              selected: !row.suggestedSkip && !duplicate,
-              duplicate,
-              skipReason: row.skipReason,
-            }
-          }),
-        )
-        setWarnings(parsed.warnings)
-        setStage('review')
+        const value = { rows: result.rows, warnings: result.warnings }
+        setParsed(value)
+        applyParsed(value)
       } catch (cause) {
         console.error(cause)
-        setError('Не удалось прочитать PDF. Попробуйте другую выписку.')
+        const timeout = cause instanceof Error && cause.message === 'PDF_READ_TIMEOUT'
+        setError(
+          timeout
+            ? 'Чтение выписки заняло слишком долго. Попробуйте ещё раз.'
+            : 'Не удалось прочитать PDF. Попробуйте другую выписку.',
+        )
         setStage('pick')
       }
     },
-    [budget.state.transactions, budget.state.customCategories, cards],
+    [applyParsed],
   )
+
+  // Если CloudStorage подгрузился позже, перепроверяем дубли уже по полным данным.
+  useEffect(() => {
+    if (!parsed) return
+    applyParsed(parsed)
+  }, [parsed, budget.hydrated, applyParsed])
 
   const handleFile = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -125,12 +151,11 @@ export function ImportSheet({ budget, initialToken, onClose, onSaved }: Props) {
   )
 
   useEffect(() => {
-    if (!initialToken || !budget.hydrated) return
+    if (!initialToken) return
     let alive = true
     void fetchStatementFile(initialToken)
       .then((file) => {
-        if (!alive) return
-        return loadFile(file)
+        if (alive) return loadFile(file)
       })
       .catch((cause) => {
         if (!alive) return
@@ -143,7 +168,7 @@ export function ImportSheet({ budget, initialToken, onClose, onSaved }: Props) {
     }
     // Токен одноразовый: повторно загружать его при изменении зависимостей не нужно.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialToken, budget.hydrated])
+  }, [initialToken, loadFile])
 
   const patchRow = (key: string, patch: Partial<ReviewRow>) => {
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)))
